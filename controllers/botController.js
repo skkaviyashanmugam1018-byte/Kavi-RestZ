@@ -341,6 +341,68 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       return;
     }
 
+    // ── ADD ONE MORE (increase last item quantity) ─────────────
+    if (input === "ADD_MORE_QTY") {
+      const lastItem = session.cart[session.cart.length - 1];
+      if (lastItem) {
+        lastItem.quantity += 1;
+        session.markModified("cart");
+        await session.save();
+
+        const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+        await sendButtons(
+          from,
+          `✅ *${lastItem.name}*\n\nQty: ${lastItem.quantity} × ₹${lastItem.price} = ₹${lastItem.price * lastItem.quantity}\n\n🛒 *Cart Total: ₹${total}*`,
+          [
+            { id: "ADD_MORE_QTY", title: "➕ Add One More" },
+            { id: "VIEW_CART",    title: "🛒 View Cart"   },
+            { id: "PLACE_ORDER",  title: "✅ Place Order"  },
+          ]
+        );
+      }
+      return;
+    }
+
+    // ── REMOVE ONE (decrease last item quantity) ───────────────
+    if (input === "REMOVE_ONE_QTY") {
+      const lastItem = session.cart[session.cart.length - 1];
+      if (lastItem) {
+        if (lastItem.quantity > 1) {
+          lastItem.quantity -= 1;
+        } else {
+          // Remove item from cart if quantity reaches 0
+          session.cart.pop();
+        }
+        session.markModified("cart");
+        await session.save();
+
+        const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+        if (session.cart.length === 0) {
+          await sendButtons(
+            from,
+            `🗑️ *${lastItem.name}* removed from cart.\n\n🛒 Your cart is empty.`,
+            [
+              { id: "VIEW_MENU", title: "🍴 Browse Menu" },
+              { id: "EXIT",      title: "❌ Exit"        },
+            ]
+          );
+        } else {
+          await sendButtons(
+            from,
+            `✅ *${lastItem.name}*\n\nQty: ${lastItem.quantity} × ₹${lastItem.price} = ₹${lastItem.price * lastItem.quantity}\n\n🛒 *Cart Total: ₹${total}*`,
+            [
+              { id: "ADD_MORE_QTY",    title: "➕ Add One More"  },
+              { id: "REMOVE_ONE_QTY",  title: "➖ Remove One"    },
+              { id: "PLACE_ORDER",     title: "✅ Place Order"   },
+            ]
+          );
+        }
+      }
+      return;
+    }
+
     // ── LOCATION FLOW — Step 1: Location received → ask name ──
     if (
       session.state === "COLLECT_DETAILS" &&
@@ -351,7 +413,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
         `https://maps.google.com/?q=${locationData.lat},${locationData.lng}`;
 
       session.deliveryData = { name: "", address, phone: "", pincode: "" };
-      session.deliveryStep = "phone";  // reusing "phone" step to collect name first
+      session.deliveryStep = "phone";
       session.markModified("deliveryData");
       await session.save();
 
@@ -428,7 +490,6 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       const data  = {};
       const lines = rawInput.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-      // Label-based parsing
       lines.forEach((line) => {
         const match = line.match(/^([^:\-=]+)[\s:\-=]+(.+)$/);
         if (match) {
@@ -438,19 +499,16 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
         }
       });
 
-      // Auto-detect phone
       if (!data["phone"]) {
         const m = rawInput.match(/(?:\+91|91|0)?([6-9]\d{9})/);
         if (m) data["phone"] = m[1];
       }
 
-      // Auto-detect pincode
       if (!data["pincode"]) {
         const m = rawInput.match(/\b(\d{6})\b/);
         if (m) data["pincode"] = m[1];
       }
 
-      // Label-free fallback
       if (!data["name"] || !data["address"]) {
         const addrLines = [];
         lines.forEach((line) => {
@@ -465,7 +523,6 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
           data["address"] = addrLines.join(", ");
       }
 
-      // Clean fields
       const name    = (data["name"]    || "Customer").trim();
       const address = (data["address"] || "").trim();
 
@@ -574,19 +631,23 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       session.markModified("cart");
       await session.save();
 
+      const currentQty = existingIndex >= 0
+        ? session.cart[existingIndex].quantity
+        : 1;
       const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
       if (foundItem.image) {
         await sendImage(from, foundItem.image, `${foundItem.name} — ₹${foundItem.price}`);
       }
 
+      // ✅ Show quantity controls after adding item
       await sendButtons(
         from,
-        `✅ *${foundItem.name}* added to cart!\n\n🛒 Cart Total: ₹${total}`,
+        `✅ *${foundItem.name}* added to cart!\n\nQty: ${currentQty} × ₹${foundItem.price} = ₹${foundItem.price * currentQty}\n\n🛒 *Cart Total: ₹${total}*`,
         [
-          { id: "VIEW_MENU",   title: "➕ Add More" },
-          { id: "VIEW_CART",   title: "🛒 View Cart" },
-          { id: "PLACE_ORDER", title: "✅ Place Order" },
+          { id: "ADD_MORE_QTY",   title: "➕ Add One More"  },
+          { id: "REMOVE_ONE_QTY", title: "➖ Remove One"    },
+          { id: "PLACE_ORDER",    title: "✅ Place Order"   },
         ]
       );
       return;
@@ -598,13 +659,13 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       if (!session.cart || session.cart.length === 0) {
         await sendButtons(from, cartMsg, [
           { id: "VIEW_MENU", title: "🍴 Browse Menu" },
-          { id: "EXIT",      title: "❌ Exit" },
+          { id: "EXIT",      title: "❌ Exit"        },
         ]);
       } else {
         await sendButtons(from, cartMsg, [
           { id: "PLACE_ORDER", title: "✅ Place Order" },
-          { id: "VIEW_MENU",   title: "➕ Add More" },
-          { id: "EXIT",        title: "❌ Exit" },
+          { id: "VIEW_MENU",   title: "➕ Add More"   },
+          { id: "EXIT",        title: "❌ Exit"        },
         ]);
       }
       return;
@@ -615,7 +676,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       if (!session.cart || session.cart.length === 0) {
         await sendButtons(from, "🛒 Your cart is empty! Add items first.", [
           { id: "VIEW_MENU", title: "🍴 Browse Menu" },
-          { id: "EXIT",      title: "❌ Exit" },
+          { id: "EXIT",      title: "❌ Exit"        },
         ]);
         return;
       }
@@ -651,9 +712,9 @@ Tap 📎 attachment → Location → Send Current Location`
       from,
       `🤔 I didn't understand that.\n\nSend *hi* to start, or choose an option:`,
       [
-        { id: "VIEW_MENU", title: "🍴 View Menu" },
-        { id: "CONTACT",   title: "📍 Contact Us" },
-        { id: "EXIT",      title: "❌ Exit" },
+        { id: "VIEW_MENU", title: "🍴 View Menu"   },
+        { id: "CONTACT",   title: "📍 Contact Us"  },
+        { id: "EXIT",      title: "❌ Exit"         },
       ]
     );
 

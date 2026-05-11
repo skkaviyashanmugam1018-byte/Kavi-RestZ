@@ -33,7 +33,7 @@ const sessionSchema = new mongoose.Schema(
     // Delivery detail collection
     deliveryStep: {
       type: String,
-      enum: [null, "name", "phone", "address", "pincode"],
+      enum: [null, "name", "phone", "address", "pincode", "confirm"], // ✅ "confirm" added
       default: null,
     },
     deliveryData: {
@@ -43,7 +43,7 @@ const sessionSchema = new mongoose.Schema(
       pincode: { type: String, default: "" },
     },
 
-    // ✅ Added — payment method tracking
+    // ✅ Payment method tracking
     paymentMethod: {
       type: String,
       enum: [null, "COD", "UPI"],
