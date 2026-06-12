@@ -1,521 +1,788 @@
-const Session  = require("../models/Session");
-const Order    = require("../models/Order");
-const MENU     = require("../config/menu");
-const CATALOGUE_MAP = require("../config/catalogue");
-const axios    = require("axios");
+const Session = require("../models/Session");
+const Order = require("../models/Order");
 const {
   sendText,
   sendButtons,
   sendList,
   sendImage,
-  sendCatalogueMessage,
-  sendOrderFlow,          // ← புது function
+  sendOrderFlow,
   sendOrderConfirmation,
 } = require("../config/whatsapp");
 
-// ─────────────────────────────────────────────────────────────
-// Welcome Message
-// ─────────────────────────────────────────────────────────────
-const buildWelcomeMessage = () =>
-  `🍽️ *Welcome to ${process.env.RESTAURANT_NAME || "Kavi Chettinadu Restaurant"}!* 🍽️\n\n_Taste The Tradition_ ✨\n\nAuthentic Chettinadu flavours from the heart of Rameswaram!\n\nHow can we help you today?`;
-
-// ─────────────────────────────────────────────────────────────
-// Cart Message
-// ─────────────────────────────────────────────────────────────
-const buildCartMessage = (cart) => {
-  if (!cart || cart.length === 0)
-    return "🛒 Your cart is empty.\n\nBrowse our menu to add items!";
-
-  let msg = "🛒 *Your Cart*\n─────────────────\n";
-  cart.forEach((item, i) => {
-    msg += `${i + 1}. ${item.name}\n   ${item.quantity} × ₹${item.price} = ₹${item.price * item.quantity}\n`;
-  });
-  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  msg += `─────────────────\n💰 *Total: ₹${total}*`;
-  return msg;
+// ─────────────────────────────────────────────────────────
+// MENU DATA
+// ─────────────────────────────────────────────────────────
+const MENU = {
+  soups: {
+    label: "🍲 Soups",
+    subcategories: {
+      veg_soups: {
+        label: "🥦 Veg Soups",
+        items: [
+          { id: "hot_sour_veg", name: "Hot & Sour Veg Soup", price: 80 },
+          { id: "sweet_corn_veg", name: "Sweet Corn Veg Soup", price: 80 },
+          { id: "clear_soup", name: "Clear Soup", price: 80 },
+        ],
+      },
+      nonveg_soups: {
+        label: "🍗 Non-Veg Soups",
+        items: [
+          { id: "crab_soup", name: "Crab Soup", price: 120 },
+          { id: "hs_chicken_soup", name: "Hot & Sour Chicken Soup", price: 100 },
+          { id: "chicken_clear_soup", name: "Chicken Clear Soup", price: 100 },
+        ],
+      },
+    },
+  },
+  starters: {
+    label: "🍢 Starters",
+    subcategories: {
+      veg_starters: {
+        label: "🥦 Veg Starters",
+        items: [
+          { id: "french_fries", name: "French Fries", price: 120 },
+          { id: "gobi_65", name: "Gobi 65", price: 150 },
+          { id: "mushroom_65", name: "Mushroom 65", price: 150 },
+          { id: "paneer_tikka", name: "Paneer Tikka", price: 160 },
+        ],
+      },
+      nonveg_starters: {
+        label: "🍗 Non-Veg Starters",
+        items: [
+          { id: "chilly_chicken_bl", name: "Chilly Chicken BL", price: 200 },
+          { id: "chicken_tikka", name: "Chicken Tikka", price: 180 },
+          { id: "chicken_65_bl", name: "Chicken 65 BL", price: 200 },
+          { id: "honey_chicken", name: "Honey Chicken", price: 220 },
+          { id: "dragon_chicken", name: "Dragon Chicken", price: 200 },
+          { id: "alfaham_chicken", name: "Alfaham Chicken", price: 200 },
+        ],
+      },
+    },
+  },
+  bbq: {
+    label: "🔥 BBQ / Grill / Tandoori",
+    subcategories: {
+      bbq_grill: {
+        label: "🔥 BBQ / Grill",
+        items: [
+          { id: "grill_full", name: "Grill Chicken - Full", price: 460 },
+          { id: "grill_half", name: "Grill Chicken - Half", price: 240 },
+          { id: "bbq_full", name: "BBQ Chicken - Full", price: 480 },
+          { id: "bbq_half", name: "BBQ Chicken - Half", price: 250 },
+          { id: "bbq_wings", name: "BBQ Juicy Wings 5pcs", price: 200 },
+        ],
+      },
+      tandoori: {
+        label: "🍗 Tandoori",
+        items: [
+          { id: "tand_full", name: "Tandoori Chicken - Full", price: 480 },
+          { id: "tand_half", name: "Tandoori Chicken - Half", price: 250 },
+          { id: "tand_platter", name: "Tandoori Platter", price: 500 },
+          { id: "fish_tikka", name: "Fish Tikka", price: 200 },
+          { id: "prawns_tikka", name: "Prawns Tikka", price: 240 },
+        ],
+      },
+      fried_chicken: {
+        label: "🍗 Fried Chicken",
+        items: [
+          { id: "bucket_5pcs", name: "Bucket 5pcs", price: 450 },
+          { id: "bucket_10pcs", name: "Bucket 10pcs", price: 880 },
+          { id: "lolipop_5pcs", name: "Lolipop 5pcs", price: 250 },
+          { id: "wings_5pcs", name: "Wings 5pcs", price: 230 },
+          { id: "popcorn", name: "Popcorn", price: 160 },
+        ],
+      },
+    },
+  },
+  biryani: {
+    label: "🍛 Biryani",
+    subcategories: {
+      regular_biryani: {
+        label: "Regular Biryani",
+        items: [
+          { id: "mutton_biryani", name: "Mutton Biriyani", price: 280 },
+          { id: "chicken_biryani", name: "Chicken Biriyani", price: 150 },
+          { id: "prawn_biryani", name: "Prawn Biriyani", price: 280 },
+          { id: "egg_biryani", name: "Egg Biriyani", price: 120 },
+          { id: "plain_biryani", name: "Plain Biriyani (Kuska)", price: 100 },
+        ],
+      },
+      bucket_biryani: {
+        label: "🪣 Bucket Biryani",
+        items: [
+          { id: "bucket_mutton_full", name: "Bucket Mutton Full (8 Persons)", price: 2700 },
+          { id: "bucket_mutton_half", name: "Bucket Mutton Half (4 Persons)", price: 1500 },
+          { id: "bucket_chicken_full", name: "Bucket Chicken Full (8 Persons)", price: 2100 },
+          { id: "bucket_chicken_half", name: "Bucket Chicken Half (4 Persons)", price: 1200 },
+        ],
+      },
+    },
+  },
+  dry_gravy: {
+    label: "🫕 Dry / Fry & Gravy",
+    subcategories: {
+      veg_dry: {
+        label: "🥦 Veg Dry & Gravy",
+        items: [
+          { id: "gobi_man_dry", name: "Gobi Manchurian Dry", price: 180 },
+          { id: "paneer_man_dry", name: "Paneer Manchurian Dry", price: 180 },
+          { id: "kadai_paneer", name: "Kadai Paneer", price: 180 },
+          { id: "paneer_butter_masala", name: "Paneer Butter Masala", price: 200 },
+        ],
+      },
+      nonveg_dry: {
+        label: "🍗 Non-Veg Dry & Gravy",
+        items: [
+          { id: "mutton_sukka", name: "Mutton Sukka", price: 220 },
+          { id: "karaikudi_sukka", name: "Karaikudi Chicken Sukka", price: 180 },
+          { id: "pepper_chicken_dry", name: "Pepper Chicken Dry", price: 200 },
+          { id: "chilly_chicken_dry", name: "Chilly Chicken Dry", price: 200 },
+          { id: "chettinad_chicken_gravy", name: "Chettinadu Chicken Gravy", price: 220 },
+          { id: "mutton_masala_bone", name: "Mutton Masala Bone", price: 300 },
+          { id: "manchatti_meen", name: "Manchatti Meen Kuzhambu", price: 160 },
+        ],
+      },
+    },
+  },
+  seafood: {
+    label: "🦞 Sea Foods",
+    subcategories: {
+      fish: {
+        label: "🐟 Fish Items",
+        items: [
+          { id: "nethili_fish_fry", name: "Nethili Fish Fry", price: 160 },
+          { id: "vanjaram_masala", name: "Vanjaram Fish Masala", price: 180 },
+          { id: "meen_polichathu", name: "Meen Polichathu", price: 250 },
+          { id: "special_fish_fry", name: "Special Fish Fry", price: 300 },
+          { id: "crab_masala", name: "Crab Masala", price: 300 },
+        ],
+      },
+      prawns: {
+        label: "🦐 Prawns & Others",
+        items: [
+          { id: "prawns_fry", name: "Prawns Fry", price: 200 },
+          { id: "prawns_masala", name: "Prawns Masala", price: 250 },
+          { id: "prawns_pepper_fry", name: "Prawns Pepper Fry", price: 230 },
+          { id: "squid_masala", name: "Squid Masala", price: 220 },
+        ],
+      },
+    },
+  },
+  breads: {
+    label: "🫓 Indian Breads & Noodles",
+    subcategories: {
+      breads: {
+        label: "🫓 Indian Breads",
+        items: [
+          { id: "parotta_set", name: "Parotta Set", price: 50 },
+          { id: "egg_kothu_parotta", name: "Egg Kothu Parotta", price: 140 },
+          { id: "chicken_kothu_parotta", name: "Chicken Kothu Parotta", price: 180 },
+          { id: "butter_naan", name: "Butter Naan", price: 70 },
+          { id: "garlic_kulcha", name: "Garlic Kulcha", price: 80 },
+        ],
+      },
+      noodles: {
+        label: "🍜 Noodles",
+        items: [
+          { id: "veg_noodles", name: "Veg Noodles", price: 120 },
+          { id: "chicken_noodles", name: "Chicken Noodles", price: 160 },
+          { id: "prawns_noodles", name: "Prawns Noodles", price: 200 },
+          { id: "mixed_noodles", name: "Mixed Noodles", price: 220 },
+        ],
+      },
+    },
+  },
+  rice_tiffin: {
+    label: "🍚 Fried Rice & Tiffin",
+    subcategories: {
+      fried_rice: {
+        label: "🍚 Fried Rice",
+        items: [
+          { id: "veg_fried_rice", name: "Veg Fried Rice", price: 120 },
+          { id: "chicken_fried_rice", name: "Chicken Fried Rice", price: 160 },
+          { id: "prawns_fried_rice", name: "Prawns Fried Rice", price: 200 },
+          { id: "schezwan_chicken_fried_rice", name: "Schezwan Chicken Fried Rice", price: 180 },
+        ],
+      },
+      tiffin: {
+        label: "🥞 Tiffin",
+        items: [
+          { id: "plain_dosa", name: "Plain Dosa", price: 50 },
+          { id: "ghee_roast", name: "Ghee Roast", price: 70 },
+          { id: "onion_uthappam", name: "Onion Uthappam", price: 70 },
+          { id: "egg_dosai", name: "Egg Dosai", price: 70 },
+          { id: "idly_2pcs", name: "Idly (2pcs)", price: 30 },
+        ],
+      },
+    },
+  },
+  meals_eggies: {
+    label: "🍽️ Meals & Eggies",
+    subcategories: {
+      meals: {
+        label: "🍽️ Meals",
+        items: [
+          { id: "veg_meals", name: "Veg Meals (Full)", price: 120 },
+          { id: "non_veg_meals", name: "Non Veg Meals (Full)", price: 140 },
+        ],
+      },
+      eggies: {
+        label: "🥚 Eggies",
+        items: [
+          { id: "omelette", name: "Omelette", price: 25 },
+          { id: "egg_masala", name: "Egg Masala", price: 120 },
+          { id: "egg_burji", name: "Egg Burji", price: 70 },
+          { id: "masala_kalakki", name: "Masala Kalakki", price: 30 },
+        ],
+      },
+    },
+  },
 };
 
-// ─────────────────────────────────────────────────────────────
-// Contact Message
-// ─────────────────────────────────────────────────────────────
-const buildContactMessage = () =>
-  `📍 *Contact & Location*\n\n🏠 *Address:*\n${process.env.RESTAURANT_ADDRESS || "14/12A1, Rameswaram - 623526"}\n\n📞 *Phone:*\n${process.env.RESTAURANT_PHONE || "+91-9585960612"}\n\n🗺️ *Google Maps:*\n${process.env.RESTAURANT_MAPS_LINK || "https://maps.google.com"}\n\n⏰ *Hours:* Open daily`;
-
-// ─────────────────────────────────────────────────────────────
-// Normalise delivery keys (text-based fallback)
-// ─────────────────────────────────────────────────────────────
-const normalizeKey = (key) => {
-  key = key.toLowerCase().trim().replace(/\r/g, "");
-  if (/^(name|your name|full name|customer name)$/.test(key))                                      return "name";
-  if (/^(phone|mobile|mob|phone no|phone number|mobile number|contact|number|ph|cell)$/.test(key)) return "phone";
-  if (/^(address|addr|delivery address|location|house|flat|area|street)$/.test(key))               return "address";
-  if (/^(pincode|pin|pin code|zip|postal|postal code)$/.test(key))                                 return "pincode";
-  return key;
-};
-
-// ─────────────────────────────────────────────────────────────
-// Category Menu (list)
-// ─────────────────────────────────────────────────────────────
-const buildCategoryMenu = async (to) => {
-  const categoryRows = Object.entries(MENU).slice(0, 10).map(([key, val]) => ({
-    id:          `CAT_${key.toUpperCase()}`,
-    title:       val.label,
-    description: `${val.items.length} items available`,
-  }));
-
-  await sendList(
-    to,
-    "🗂️ *Menu Categories*",
-    "Choose a category to explore our Chettinadu menu:",
-    "Browse Categories",
-    [{ title: "Food Categories", rows: categoryRows }]
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Item Menu (list + pagination)
-// ─────────────────────────────────────────────────────────────
-const buildItemMenu = async (to, category, page = 0) => {
-  const cat = MENU[category];
-  if (!cat) { await sendText(to, "❌ Invalid category. Please try again."); return; }
-
-  const PAGE_SIZE = 9;
-  const start     = page * PAGE_SIZE;
-  const end       = start + PAGE_SIZE;
-  const items     = cat.items.slice(start, end);
-  const hasMore   = cat.items.length > end;
-  const hasPrev   = page > 0;
-
-  const rows = items.map((item) => ({
-    id:          `ITEM_${item.id}`,
-    title:       item.name,
-    description: `₹${item.price} — ${item.description}`,
-  }));
-
-  if (hasMore) rows.push({ id: `MORE_${category.toUpperCase()}_${page + 1}`, title: "➡️ More Items", description: `See items ${end + 1}–${Math.min(end + PAGE_SIZE, cat.items.length)}` });
-  if (hasPrev) rows.push({ id: `MORE_${category.toUpperCase()}_${page - 1}`, title: "⬅️ Previous Items", description: "Go back to previous page" });
-
-  const pageLabel = hasMore || hasPrev ? ` (Page ${page + 1})` : "";
-  if (cat.image) await sendImage(to, cat.image, `${cat.emoji} *${cat.label}*${pageLabel}`);
-
-  await sendList(
-    to,
-    `${cat.emoji} *${cat.label}*${pageLabel}`,
-    "Select an item to add to your cart:",
-    "Choose Item",
-    [{ title: cat.label, rows }]
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Ask Payment Method
-// ─────────────────────────────────────────────────────────────
-const askPaymentMethod = async (from, session) => {
-  const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  session.state = "SELECT_PAYMENT";
-  await session.save();
-
-  await sendButtons(
-    from,
-    `💰 *Total Amount: ₹${total}*\n\n─────────────────\nChoose your payment method:`,
-    [
-      { id: "PAY_UPI", title: "📲 UPI / QR Code" },
-      { id: "PAY_COD", title: "💵 Cash on Delivery" },
-    ]
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Send UPI QR
-// ─────────────────────────────────────────────────────────────
-const sendUpiDetails = async (from, session) => {
-  const total  = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const upiId  = process.env.RESTAURANT_UPI_ID || "restaurant@upi";
-  const qrUrl  = process.env.RESTAURANT_UPI_QR || "";
-  const name   = process.env.RESTAURANT_NAME   || "Kavi Chettinadu";
-
-  session.state = "CONFIRM_UPI";
-  await session.save();
-
-  if (qrUrl) await sendImage(from, qrUrl, `📲 Scan & Pay ₹${total} — ${name}`);
-
-  await sendButtons(
-    from,
-    `📲 *UPI Payment Details*\n─────────────────\n🏪 *Pay to:* ${name}\n💳 *UPI ID:* ${upiId}\n💰 *Amount: ₹${total}*\n─────────────────\n\n1️⃣ Open GPay / PhonePe / Paytm\n2️⃣ Scan QR *or* pay to UPI ID above\n3️⃣ Enter amount ₹${total}\n4️⃣ Tap ✅ *Payment Done* below`,
-    [
-      { id: "UPI_DONE", title: "✅ Payment Done" },
-      { id: "PAY_COD",  title: "💵 Pay COD instead" },
-    ]
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Confirm & Place Order (text-bot flow)
-// ─────────────────────────────────────────────────────────────
-const confirmAndPlaceOrder = async (from, session, paymentMethod = "COD") => {
-  const { name, phone, address, pincode } = session.deliveryData;
-  const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-
-  const order = new Order({
-    orderId:     "KAV" + Date.now(),
-    phone:       from,
-    name,
-    address:     `${address}, ${pincode}`,
-    items:       session.cart,
-    totalAmount: total,
-    paymentMethod: paymentMethod === "UPI" ? "UPI" : "Cash on Delivery",
-    status: "confirmed",
-  });
-  await order.save();
-
-  session.cart          = [];
-  session.state         = "ORDER_PLACED";
-  session.deliveryData  = {};
-  session.deliveryStep  = null;
-  session.markModified("cart");
-  session.markModified("deliveryData");
-  await session.save();
-
-  const itemLines = order.items
-    .map((i) => `• ${i.name} x${i.quantity} — ₹${i.price * i.quantity}`)
-    .join("\n");
-  const paymentLabel = paymentMethod === "UPI" ? "📲 UPI / QR Code (Paid)" : "💵 Cash on Delivery";
-
-  await sendButtons(
-    from,
-    `🎉 *Order Placed Successfully!*\n\n─────────────────\n📦 *Order ID:* ${order.orderId}\n─────────────────\n\n${itemLines}\n\n─────────────────\n💰 *Total: ₹${total}*\n💳 *Payment: ${paymentLabel}*\n─────────────────\n\n👤 *Name:* ${name}\n📞 *Phone:* +91 ${phone}\n🏠 *Address:* ${address}\n📮 *Pincode:* ${pincode}\n\n⏱️ Est. Delivery: 30-45 mins\nThank you for ordering with us! 🙏`,
-    [
-      { id: "PLACE_ORDER_FLOW", title: "🍴 Order Again" },
-      { id: "EXIT",             title: "❌ Exit" },
-    ]
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Handle Catalogue Order (WhatsApp Catalogue cart)
-// ─────────────────────────────────────────────────────────────
-const handleCatalogueOrder = async (from, session, catalogueOrder) => {
-  const items = catalogueOrder.product_items || [];
-
-  for (const item of items) {
-    const productInfo = CATALOGUE_MAP[item.product_retailer_id];
-    if (!productInfo) { console.warn("⚠️ Unknown catalogue product:", item.product_retailer_id); continue; }
-
-    const existingIndex = session.cart.findIndex((c) => c.itemId === productInfo.id);
-    if (existingIndex >= 0) {
-      session.cart[existingIndex].quantity += item.quantity;
-    } else {
-      session.cart.push({ itemId: productInfo.id, name: productInfo.name, price: productInfo.price, quantity: item.quantity, category: productInfo.category });
+// ─────────────────────────────────────────────────────────
+// HELPER: Find item by ID
+// ─────────────────────────────────────────────────────────
+function findItem(itemId) {
+  for (const cat of Object.values(MENU)) {
+    for (const sub of Object.values(cat.subcategories)) {
+      const item = sub.items.find((i) => i.id === itemId);
+      if (item) return item;
     }
   }
+  return null;
+}
 
-  session.markModified("cart");
-  await session.save();
+// ─────────────────────────────────────────────────────────
+// HELPER: Build cart message
+// ─────────────────────────────────────────────────────────
+function buildCartMsg(cart) {
+  if (!cart || cart.length === 0) return "🛒 Your cart is empty!";
+  let msg = "🛒 *Your Cart*\n─────────────────\n";
+  cart.forEach((item, i) => {
+    msg += `${i + 1}. ${item.name}\n   ${item.qty} × ₹${item.price} = ₹${item.price * item.qty}\n`;
+  });
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  msg += `─────────────────\n💰 *Total: ₹${total}*`;
+  return msg;
+}
 
-  const total     = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const itemLines = session.cart.map((i) => `• ${i.name} × ${i.quantity} = ₹${i.price * i.quantity}`).join("\n");
+// ─────────────────────────────────────────────────────────
+// SEND: Main Menu Categories
+// ─────────────────────────────────────────────────────────
+async function sendMainMenu(to) {
+  const rows = Object.entries(MENU).map(([key, cat]) => ({
+    id: `CAT_${key}`,
+    title: cat.label,
+    description: `Tap to browse`,
+  }));
+  await sendList(
+    to,
+    "🍽️ Kavi Chettinadu Restaurant",
+    "Select a category to explore our menu:",
+    "Browse Menu",
+    [{ title: "Menu Categories", rows }]
+  );
+}
 
+// ─────────────────────────────────────────────────────────
+// SEND: Subcategories
+// ─────────────────────────────────────────────────────────
+async function sendSubcategories(to, catKey) {
+  const cat = MENU[catKey];
+  if (!cat) return;
+  const rows = Object.entries(cat.subcategories).map(([key, sub]) => ({
+    id: `SUB_${catKey}___${key}`,
+    title: sub.label,
+    description: `${sub.items.length} items`,
+  }));
+  await sendList(
+    to,
+    cat.label,
+    "Select a subcategory:",
+    "View Items",
+    [{ title: cat.label, rows }]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND: Items list
+// ─────────────────────────────────────────────────────────
+async function sendItems(to, catKey, subKey) {
+  const sub = MENU[catKey]?.subcategories[subKey];
+  if (!sub) return;
+  const rows = sub.items.map((item) => ({
+    id: `ITEM_${item.id}`,
+    title: item.name,
+    description: `Rs.${item.price}`,
+  }));
+  await sendList(
+    to,
+    sub.label,
+    "Select an item to add to cart:",
+    "Choose Item",
+    [{ title: sub.label, rows }]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND: Quantity selection
+// ─────────────────────────────────────────────────────────
+async function sendQuantitySelect(to, item) {
   await sendButtons(
-    from,
-    `🛒 *Your Cart*\n─────────────────\n${itemLines}\n─────────────────\n💰 *Total: ₹${total}*\n\nReady to place your order?`,
+    to,
+    `*${item.name}*\n💰 Price: Rs.${item.price}\n\nSelect quantity:`,
     [
-      { id: "PLACE_ORDER_FLOW", title: "✅ Place Order" },
-      { id: "VIEW_MENU",        title: "➕ Add More"   },
-      { id: "EXIT",             title: "❌ Exit"        },
+      { id: `QTY_1___${item.id}`, title: "1️⃣  Qty: 1" },
+      { id: `QTY_2___${item.id}`, title: "2️⃣  Qty: 2" },
+      { id: `QTY_3___${item.id}`, title: "3️⃣  Qty: 3" },
     ]
   );
-};
+}
 
-// ─────────────────────────────────────────────────────────────
-// Main Bot Handler
-// ─────────────────────────────────────────────────────────────
-const handleMessage = async (from, messageBody, interactiveReply, locationData = null, catalogueOrder = null) => {
+// ─────────────────────────────────────────────────────────
+// SEND: After add to cart
+// ─────────────────────────────────────────────────────────
+async function sendAfterAddToCart(to, cart) {
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  await sendButtons(
+    to,
+    `✅ *Item added to cart!*\n\n🛒 Cart Total: Rs.${total}\n\nWhat would you like to do?`,
+    [
+      { id: "ADD_MORE", title: "➕ Add More Items" },
+      { id: "VIEW_CART", title: "🛒 View Cart" },
+      { id: "PLACE_ORDER", title: "✅ Place Order" },
+    ]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND: Order type
+// ─────────────────────────────────────────────────────────
+async function sendOrderType(to) {
+  await sendButtons(
+    to,
+    "🚚 *Select Order Type:*",
+    [
+      { id: "OT_DELIVERY", title: "🚚 Home Delivery" },
+      { id: "OT_TAKEAWAY", title: "🥡 Take Away" },
+      { id: "OT_DINE_IN", title: "🍽️ Dine In" },
+    ]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND: Payment method
+// ─────────────────────────────────────────────────────────
+async function sendPaymentMethod(to, total) {
+  await sendButtons(
+    to,
+    `💰 *Total Amount: Rs.${total}*\n\nSelect payment method:`,
+    [
+      { id: "PAY_COD", title: "💵 Cash on Delivery" },
+      { id: "PAY_UPI", title: "📲 UPI Payment" },
+      { id: "PAY_CARD", title: "💳 Card Payment" },
+    ]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND: Order Summary
+// ─────────────────────────────────────────────────────────
+async function sendOrderSummary(to, session) {
+  const cart = session.cart;
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const { name, phone, address, orderType, paymentMethod } = session.deliveryData;
+
+  const itemsList = cart.map((i) => `• ${i.name} x${i.qty} = Rs.${i.price * i.qty}`).join("\n");
+
+  const orderTypeLabel =
+    orderType === "OT_DELIVERY" ? "🚚 Home Delivery" :
+    orderType === "OT_TAKEAWAY" ? "🥡 Take Away" : "🍽️ Dine In";
+
+  const payLabel =
+    paymentMethod === "PAY_COD" ? "💵 Cash on Delivery" :
+    paymentMethod === "PAY_UPI" ? "📲 UPI Payment" : "💳 Card Payment";
+
+  await sendButtons(
+    to,
+    `📋 *Order Summary*\n─────────────────\n` +
+    `👤 *Name:* ${name}\n` +
+    `📞 *Phone:* ${phone}\n` +
+    `🚚 *Type:* ${orderTypeLabel}\n` +
+    `🏠 *Address:* ${address || "N/A"}\n` +
+    `💳 *Payment:* ${payLabel}\n` +
+    `─────────────────\n` +
+    `*Items:*\n${itemsList}\n` +
+    `─────────────────\n` +
+    `💰 *Total: Rs.${total}*\n\nConfirm your order?`,
+    [
+      { id: "CONFIRM_ORDER", title: "✅ Confirm Order" },
+      { id: "MODIFY_ORDER", title: "✏️ Modify Order" },
+    ]
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// MAIN HANDLER
+// ─────────────────────────────────────────────────────────
+const handleMessage = async (from, messageBody, interactiveReply, locationData, catalogueOrder) => {
   try {
-    console.log("🔥 handleMessage started");
-
     let session = await Session.findOne({ phoneNumber: from });
     if (!session) {
       session = new Session({ phoneNumber: from, state: "WELCOME", cart: [] });
       await session.save();
     }
-
     if (!session.cart) session.cart = [];
+    if (!session.deliveryData) session.deliveryData = {};
     session.lastActivity = new Date();
 
+    const input = interactiveReply?.id || messageBody?.trim()?.toLowerCase();
     const rawInput = messageBody?.trim();
-    const input    = interactiveReply?.id || rawInput?.toLowerCase();
 
-    console.log("📥 Input:", input, "| State:", session.state, "| Step:", session.deliveryStep);
-
-    // ── CATALOGUE ORDER ────────────────────────────────────
-    if (catalogueOrder) {
-      await handleCatalogueOrder(from, session, catalogueOrder);
-      return;
-    }
+    console.log(`📥 From: ${from} | Input: ${input} | State: ${session.state} | Step: ${session.deliveryStep}`);
 
     // ── EXIT ──────────────────────────────────────────────
-    if (["EXIT", "exit", "bye", "quit"].includes(input)) {
-      session.state        = "WELCOME";
-      session.cart         = [];
-      session.deliveryStep = null;
+    if (["exit", "bye", "quit"].includes(input)) {
+      session.state = "WELCOME";
+      session.cart = [];
       session.deliveryData = {};
+      session.deliveryStep = null;
       session.markModified("cart");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from, `👋 *Thank you for visiting ${process.env.RESTAURANT_NAME || "Kavi Chettinadu Restaurant"}!*\n\nSend *hi* anytime to place a new order. 🍽️`);
+      await sendText(from, "👋 Thank you for visiting Kavi Chettinadu Restaurant!\n\nSend *hi* anytime to order again. 🍛");
       return;
     }
 
-    // ── GREETING → WhatsApp Flow அனுப்பு ─────────────────
-    // "hi", "hello" etc. வரும்போது Flow button அனுப்பு
-    if (["hi", "hello", "hey", "start", "menu", "MAIN_MENU"].includes(input)) {
-      session.state        = "MAIN_MENU";
-      session.deliveryStep = null;
+    // ── GREETING ──────────────────────────────────────────
+    if (["hi", "hello", "hey", "start", "menu"].includes(input)) {
+      session.state = "MAIN_MENU";
+      session.cart = [];
       session.deliveryData = {};
-      session.markModified("deliveryData");
-      await session.save();
-
-      // WhatsApp Flow button அனுப்பு
-      await sendOrderFlow(from);
-      return;
-    }
-
-    // ── PLACE_ORDER_FLOW → Flow button மீண்டும் அனுப்பு ──
-    if (input === "PLACE_ORDER_FLOW") {
-      session.cart         = [];
       session.deliveryStep = null;
-      session.deliveryData = {};
       session.markModified("cart");
       session.markModified("deliveryData");
       await session.save();
-      await sendOrderFlow(from);
+      await sendButtons(
+        from,
+        `👋 *Welcome to Kavi Chettinadu Restaurant!* 🍛\n\n_Taste The Tradition_ ✨\n\nAuthentic Chettinadu flavours from Rameswaram!\n\nWould you like to browse our menu?`,
+        [
+          { id: "BROWSE_MENU", title: "✅ Yes, Show Menu" },
+          { id: "exit", title: "❌ No, Exit" },
+        ]
+      );
       return;
     }
 
-    // ── UPI CONFIRMED ─────────────────────────────────────
-    if (input === "UPI_DONE") {
-      await confirmAndPlaceOrder(from, session, "UPI");
-      return;
-    }
-
-    // ── PAY COD ───────────────────────────────────────────
-    if (input === "PAY_COD") {
-      await confirmAndPlaceOrder(from, session, "COD");
-      return;
-    }
-
-    // ── PAY UPI ───────────────────────────────────────────
-    if (input === "PAY_UPI") {
-      await sendUpiDetails(from, session);
-      return;
-    }
-
-    // ── ADD ONE MORE ──────────────────────────────────────
-    if (input === "ADD_MORE_QTY") {
-      const lastItem = session.cart[session.cart.length - 1];
-      if (lastItem) {
-        lastItem.quantity += 1;
-        session.markModified("cart");
-        await session.save();
-        const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-        await sendButtons(from, `✅ *${lastItem.name}*\n\nQty: ${lastItem.quantity} × ₹${lastItem.price} = ₹${lastItem.price * lastItem.quantity}\n\n🛒 *Cart Total: ₹${total}*`, [
-          { id: "ADD_MORE_QTY",    title: "➕ Add One More" },
-          { id: "VIEW_CART",       title: "🛒 View Cart"    },
-          { id: "PLACE_ORDER_FLOW",title: "✅ Place Order"  },
-        ]);
-      }
-      return;
-    }
-
-    // ── REMOVE ONE ────────────────────────────────────────
-    if (input === "REMOVE_ONE_QTY") {
-      const lastItem = session.cart[session.cart.length - 1];
-      if (lastItem) {
-        if (lastItem.quantity > 1) { lastItem.quantity -= 1; } else { session.cart.pop(); }
-        session.markModified("cart");
-        await session.save();
-        const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-        if (session.cart.length === 0) {
-          await sendButtons(from, `🗑️ *${lastItem.name}* removed.\n\n🛒 Cart is empty.`, [{ id: "PLACE_ORDER_FLOW", title: "🍴 Browse Menu" }, { id: "EXIT", title: "❌ Exit" }]);
-        } else {
-          await sendButtons(from, `✅ *${lastItem.name}*\n\nQty: ${lastItem.quantity} × ₹${lastItem.price} = ₹${lastItem.price * lastItem.quantity}\n\n🛒 *Cart Total: ₹${total}*`, [
-            { id: "ADD_MORE_QTY",    title: "➕ Add One More"  },
-            { id: "REMOVE_ONE_QTY", title: "➖ Remove One"    },
-            { id: "PLACE_ORDER_FLOW",title: "✅ Place Order"  },
-          ]);
-        }
-      }
-      return;
-    }
-
-    // ── LOCATION FLOW ─────────────────────────────────────
-    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === null && locationData) {
-      const address = locationData.address || `https://maps.google.com/?q=${locationData.lat},${locationData.lng}`;
-      session.deliveryData = { name: "", address, phone: "", pincode: "" };
-      session.deliveryStep = "name";
-      session.markModified("deliveryData");
+    // ── BROWSE MENU ───────────────────────────────────────
+    if (["BROWSE_MENU", "ADD_MORE", "MAIN_MENU"].includes(input)) {
+      session.state = "CATEGORY_SELECT";
       await session.save();
-      await sendText(from, `📍 *Location received!*\n✅ Address saved.\n\n─────────────────\nPlease send your *full name:*`);
-      return;
-    }
-
-    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "name") {
-      session.deliveryData.name = rawInput?.trim() || "Customer";
-      session.deliveryStep      = "phone";
-      session.markModified("deliveryData");
-      await session.save();
-      await sendText(from, `👤 *Name saved:* ${session.deliveryData.name}\n\n─────────────────\nNow please send your *10-digit mobile number:*`);
-      return;
-    }
-
-    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "phone") {
-      let phone = rawInput?.replace(/\D/g, "") || "";
-      if (phone.length === 12 && phone.startsWith("91")) phone = phone.slice(2);
-      if (phone.length === 11 && phone.startsWith("0"))  phone = phone.slice(1);
-      if (!/^\d{10}$/.test(phone)) { await sendText(from, "❌ *Invalid phone number.*\n\nPlease send a valid *10-digit mobile number:*"); return; }
-      session.deliveryData.phone = phone;
-      session.deliveryStep       = "pincode";
-      session.markModified("deliveryData");
-      await session.save();
-      await sendText(from, `📞 *Phone saved:* +91 ${phone}\n\n─────────────────\nNow please send your *6-digit pincode:*`);
-      return;
-    }
-
-    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "pincode") {
-      const pincode = rawInput?.replace(/\D/g, "") || "";
-      if (!/^\d{6}$/.test(pincode)) { await sendText(from, "❌ *Invalid pincode.*\n\nPlease send a valid *6-digit pincode:*"); return; }
-      session.deliveryData.pincode = pincode;
-      session.deliveryStep         = null;
-      session.markModified("deliveryData");
-      await session.save();
-      await askPaymentMethod(from, session);
-      return;
-    }
-
-    // ── TEXT-BASED DELIVERY (one message) ─────────────────
-    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === null && !interactiveReply && !locationData) {
-      const data  = {};
-      const lines = rawInput.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-      lines.forEach((line) => {
-        const match = line.match(/^([^:\-=]+)[\s:\-=]+(.+)$/);
-        if (match) { data[normalizeKey(match[1])] = match[2].trim().replace(/\r/g, ""); }
-      });
-      if (!data["phone"]) { const m = rawInput.match(/(?:\+91|91|0)?([6-9]\d{9})/); if (m) data["phone"] = m[1]; }
-      if (!data["pincode"]) { const m = rawInput.match(/\b(\d{6})\b/); if (m) data["pincode"] = m[1]; }
-      if (!data["name"] || !data["address"]) {
-        const addrLines = [];
-        lines.forEach((line) => {
-          const digits = line.replace(/\D/g, "");
-          if (digits === data["phone"] || digits === data["pincode"] || /^\+?[\d\s\-]{6,}$/.test(line)) return;
-          if (!data["name"]) { data["name"] = line; return; }
-          addrLines.push(line);
-        });
-        if (!data["address"] && addrLines.length > 0) data["address"] = addrLines.join(", ");
-      }
-
-      let phone = (data["phone"] || "").trim().replace(/\D/g, "");
-      if (phone.length === 12 && phone.startsWith("91")) phone = phone.slice(2);
-      if (phone.length === 11 && phone.startsWith("0"))  phone = phone.slice(1);
-
-      const name    = (data["name"]    || "Customer").trim();
-      const address = (data["address"] || "").trim();
-      const pincode = (data["pincode"] || "").trim().replace(/\D/g, "");
-
-      const errors = [];
-      if (!address)                 errors.push("❌ *Address* is required");
-      if (!/^\d{10}$/.test(phone))  errors.push("❌ *Phone* must be a valid 10-digit mobile number");
-      if (!/^\d{6}$/.test(pincode)) errors.push("❌ *Pincode* must be exactly 6 digits");
-
-      if (errors.length > 0) {
-        await sendText(from, `${errors.join("\n")}\n\n─────────────────\nPlease send your details like this:\n\nName: Raj Kumar\nPhone: 9876543210\nAddress: 12, Main Street, Rameswaram\nPincode: 623526\n\n📍 Or share your *current location* using WhatsApp's 📎 attachment → Location`);
-        return;
-      }
-
-      session.deliveryData = { name, phone, address, pincode };
-      session.deliveryStep = null;
-      session.markModified("deliveryData");
-      await session.save();
-      await askPaymentMethod(from, session);
-      return;
-    }
-
-    // ── VIEW MENU (list-based fallback) ───────────────────
-    if (input === "VIEW_MENU") {
-      session.state = "CATEGORY_MENU";
-      await session.save();
-      await buildCategoryMenu(from);
-      return;
-    }
-
-    // ── CONTACT ───────────────────────────────────────────
-    if (input === "CONTACT") {
-      await sendButtons(from, buildContactMessage(), [
-        { id: "PLACE_ORDER_FLOW", title: "🍴 View Menu" },
-        { id: "EXIT",             title: "❌ Exit" },
-      ]);
-      return;
-    }
-
-    // ── PAGINATION ────────────────────────────────────────
-    if (input?.startsWith("MORE_")) {
-      const parts       = input.split("_");
-      const page        = parseInt(parts[parts.length - 1]);
-      const categoryKey = parts.slice(1, parts.length - 1).join("_").toLowerCase();
-      session.currentCategory = categoryKey;
-      await session.save();
-      await buildItemMenu(from, categoryKey, page);
+      await sendMainMenu(from);
       return;
     }
 
     // ── CATEGORY SELECT ───────────────────────────────────
     if (input?.startsWith("CAT_")) {
-      const categoryKey       = input.replace("CAT_", "").toLowerCase();
-      session.currentCategory = categoryKey;
-      session.state           = "ITEM_MENU";
+      const catKey = input.replace("CAT_", "");
+      session.currentCategory = catKey;
+      session.state = "SUBCATEGORY_SELECT";
       await session.save();
-      await buildItemMenu(from, categoryKey, 0);
+      await sendSubcategories(from, catKey);
       return;
     }
 
-    // ── ITEM SELECT → Add to Cart ─────────────────────────
+    // ── SUBCATEGORY SELECT ────────────────────────────────
+    if (input?.startsWith("SUB_")) {
+      const withoutPrefix = input.replace("SUB_", "");
+      const sepIdx = withoutPrefix.indexOf("___");
+      const catKey = withoutPrefix.substring(0, sepIdx);
+      const subKey = withoutPrefix.substring(sepIdx + 3);
+      session.currentCategory = catKey;
+      session.currentSubcategory = subKey;
+      session.state = "ITEM_SELECT";
+      await session.save();
+      await sendItems(from, catKey, subKey);
+      return;
+    }
+
+    // ── ITEM SELECT ───────────────────────────────────────
     if (input?.startsWith("ITEM_")) {
       const itemId = input.replace("ITEM_", "");
-      let foundItem = null, foundCategory = null;
+      const item = findItem(itemId);
+      if (!item) { await sendText(from, "❌ Item not found. Please try again."); return; }
+      session.pendingItem = { id: item.id, name: item.name, price: item.price };
+      session.state = "QUANTITY_SELECT";
+      session.markModified("pendingItem");
+      await session.save();
+      await sendQuantitySelect(from, item);
+      return;
+    }
 
-      for (const [catKey, catData] of Object.entries(MENU)) {
-        const item = catData.items.find((i) => i.id === itemId);
-        if (item) { foundItem = item; foundCategory = catKey; break; }
+    // ── QUANTITY SELECT ───────────────────────────────────
+    if (input?.startsWith("QTY_")) {
+      const withoutPrefix = input.replace("QTY_", "");
+      const sepIdx = withoutPrefix.indexOf("___");
+      const qty = parseInt(withoutPrefix.substring(0, sepIdx));
+      const itemId = withoutPrefix.substring(sepIdx + 3);
+      const item = findItem(itemId) || session.pendingItem;
+
+      if (!item) { await sendText(from, "❌ Error. Please try again."); return; }
+
+      const existing = session.cart.findIndex((c) => c.itemId === item.id);
+      if (existing >= 0) {
+        session.cart[existing].qty += qty;
+      } else {
+        session.cart.push({ itemId: item.id, name: item.name, price: item.price, qty });
       }
-
-      if (!foundItem) { await sendText(from, "❌ Item not found. Please try again."); return; }
-
-      const existingIndex = session.cart.findIndex((c) => c.itemId === itemId);
-      if (existingIndex >= 0) { session.cart[existingIndex].quantity += 1; }
-      else { session.cart.push({ itemId: foundItem.id, name: foundItem.name, price: foundItem.price, quantity: 1, category: foundCategory }); }
+      session.pendingItem = null;
+      session.state = "CART";
       session.markModified("cart");
       await session.save();
-
-      const currentQty = existingIndex >= 0 ? session.cart[existingIndex].quantity : 1;
-      const total = session.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-
-      if (foundItem.image) await sendImage(from, foundItem.image, `${foundItem.name} — ₹${foundItem.price}`);
-
-      await sendButtons(from, `✅ *${foundItem.name}* added to cart!\n\nQty: ${currentQty} × ₹${foundItem.price} = ₹${foundItem.price * currentQty}\n\n🛒 *Cart Total: ₹${total}*`, [
-        { id: "ADD_MORE_QTY",    title: "➕ Add One More"  },
-        { id: "REMOVE_ONE_QTY", title: "➖ Remove One"    },
-        { id: "PLACE_ORDER_FLOW",title: "✅ Place Order"  },
-      ]);
+      await sendAfterAddToCart(from, session.cart);
       return;
     }
 
     // ── VIEW CART ─────────────────────────────────────────
-    if (input === "VIEW_CART" || input === "cart") {
-      const cartMsg = buildCartMessage(session.cart);
+    if (input === "VIEW_CART") {
+      const cartMsg = buildCartMsg(session.cart);
       if (!session.cart || session.cart.length === 0) {
-        await sendButtons(from, cartMsg, [{ id: "PLACE_ORDER_FLOW", title: "🍴 Browse Menu" }, { id: "EXIT", title: "❌ Exit" }]);
+        await sendButtons(from, cartMsg, [
+          { id: "BROWSE_MENU", title: "🍴 Browse Menu" },
+          { id: "exit", title: "❌ Exit" },
+        ]);
       } else {
-        await sendButtons(from, cartMsg, [{ id: "PLACE_ORDER_FLOW", title: "✅ Place Order" }, { id: "VIEW_MENU", title: "➕ Add More" }, { id: "EXIT", title: "❌ Exit" }]);
+        await sendButtons(from, cartMsg, [
+          { id: "ADD_MORE", title: "➕ Add More" },
+          { id: "PLACE_ORDER", title: "✅ Place Order" },
+          { id: "CLEAR_CART", title: "🗑️ Clear Cart" },
+        ]);
       }
+      return;
+    }
+
+    // ── CLEAR CART ────────────────────────────────────────
+    if (input === "CLEAR_CART") {
+      session.cart = [];
+      session.markModified("cart");
+      await session.save();
+      await sendButtons(from, "🗑️ Cart cleared!", [
+        { id: "BROWSE_MENU", title: "🍴 Browse Menu" },
+        { id: "exit", title: "❌ Exit" },
+      ]);
+      return;
+    }
+
+    // ── PLACE ORDER ───────────────────────────────────────
+    if (["PLACE_ORDER", "PLACE_ORDER_FLOW"].includes(input)) {
+      if (!session.cart || session.cart.length === 0) {
+        await sendButtons(from, "❌ Your cart is empty!", [{ id: "BROWSE_MENU", title: "🍴 Browse Menu" }]);
+        return;
+      }
+      session.state = "COLLECT_DETAILS";
+      session.deliveryStep = "name";
+      session.deliveryData = {};
+      session.markModified("deliveryData");
+      await session.save();
+      await sendText(from, "📝 *Let's confirm your details!*\n\n👤 Please enter your *full name:*");
+      return;
+    }
+
+    // ── COLLECT: Name ─────────────────────────────────────
+    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "name") {
+      session.deliveryData.name = rawInput || "Customer";
+      session.deliveryStep = "phone";
+      session.markModified("deliveryData");
+      await session.save();
+      await sendText(from, `✅ Name: *${session.deliveryData.name}*\n\n📞 Please enter your *phone number:*`);
+      return;
+    }
+
+    // ── COLLECT: Phone ────────────────────────────────────
+    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "phone") {
+      let phone = rawInput?.replace(/\D/g, "") || "";
+      if (phone.length === 12 && phone.startsWith("91")) phone = phone.slice(2);
+      if (!/^\d{10}$/.test(phone)) {
+        await sendText(from, "❌ Invalid number. Please enter a valid *10-digit mobile number:*");
+        return;
+      }
+      session.deliveryData.phone = phone;
+      session.deliveryStep = "order_type";
+      session.markModified("deliveryData");
+      await session.save();
+      await sendOrderType(from);
+      return;
+    }
+
+    // ── ORDER TYPE ────────────────────────────────────────
+    if (["OT_DELIVERY", "OT_TAKEAWAY", "OT_DINE_IN"].includes(input)) {
+      session.deliveryData.orderType = input;
+      session.markModified("deliveryData");
+
+      if (input === "OT_DELIVERY") {
+        session.deliveryStep = "address";
+        await session.save();
+        await sendButtons(
+          from,
+          "🏠 *Delivery Address*\n\nHow would you like to share your address?",
+          [
+            { id: "ADDR_LOCATION", title: "📍 Share Location" },
+            { id: "ADDR_MANUAL", title: "✏️ Enter Manually" },
+          ]
+        );
+      } else {
+        session.deliveryData.address = input === "OT_TAKEAWAY" ? "Takeaway - Pick up at restaurant" : "Dine In";
+        session.deliveryStep = "payment";
+        await session.save();
+        const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+        await sendPaymentMethod(from, total);
+      }
+      return;
+    }
+
+    // ── ADDRESS: Location ─────────────────────────────────
+    if (input === "ADDR_LOCATION") {
+      await sendText(from, "📍 Please share your *live location* using WhatsApp attachment (📎) → Location");
+      return;
+    }
+
+    if (locationData && session.state === "COLLECT_DETAILS") {
+      const addr = locationData.address || `https://maps.google.com/?q=${locationData.lat},${locationData.lng}`;
+      session.deliveryData.address = addr;
+      session.deliveryStep = "payment";
+      session.markModified("deliveryData");
+      await session.save();
+      const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+      await sendText(from, "✅ Location saved!");
+      await sendPaymentMethod(from, total);
+      return;
+    }
+
+    // ── ADDRESS: Manual ───────────────────────────────────
+    if (input === "ADDR_MANUAL") {
+      session.deliveryStep = "address_manual";
+      await session.save();
+      await sendText(from, "✏️ Please enter your *full delivery address:*\n_(House No, Street, Area, Landmark, Pincode)_");
+      return;
+    }
+
+    if (session.state === "COLLECT_DETAILS" && session.deliveryStep === "address_manual") {
+      session.deliveryData.address = rawInput || "";
+      session.deliveryStep = "payment";
+      session.markModified("deliveryData");
+      await session.save();
+      const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+      await sendText(from, "✅ Address saved!");
+      await sendPaymentMethod(from, total);
+      return;
+    }
+
+    // ── PAYMENT ───────────────────────────────────────────
+    if (["PAY_COD", "PAY_UPI", "PAY_CARD"].includes(input)) {
+      session.deliveryData.paymentMethod = input;
+      session.state = "ORDER_SUMMARY";
+      session.deliveryStep = null;
+      session.markModified("deliveryData");
+      await session.save();
+
+      if (input === "PAY_UPI") {
+        const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+        const upiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
+        await sendText(from, `📲 *UPI Payment Details*\n\n💳 UPI ID: *${upiId}*\n💰 Amount: *Rs.${total}*\n\nPlease complete the payment and confirm below.`);
+        await sendButtons(from, "Have you completed the UPI payment?", [
+          { id: "UPI_DONE", title: "✅ Payment Done" },
+          { id: "PAY_COD", title: "💵 Pay COD instead" },
+        ]);
+        return;
+      }
+
+      if (input === "PAY_CARD") {
+        await sendText(from, "💳 *Card payment will be collected at delivery/counter.*");
+      }
+
+      await sendOrderSummary(from, session);
+      return;
+    }
+
+    // ── UPI DONE ──────────────────────────────────────────
+    if (input === "UPI_DONE") {
+      session.deliveryData.paymentMethod = "PAY_UPI";
+      session.state = "ORDER_SUMMARY";
+      session.markModified("deliveryData");
+      await session.save();
+      await sendOrderSummary(from, session);
+      return;
+    }
+
+    // ── MODIFY ORDER ──────────────────────────────────────
+    if (input === "MODIFY_ORDER") {
+      session.state = "CART";
+      await session.save();
+      await sendButtons(from, buildCartMsg(session.cart), [
+        { id: "ADD_MORE", title: "➕ Add More" },
+        { id: "CLEAR_CART", title: "🗑️ Clear Cart" },
+        { id: "PLACE_ORDER", title: "✅ Place Order" },
+      ]);
+      return;
+    }
+
+    // ── CONFIRM ORDER ─────────────────────────────────────
+    if (input === "CONFIRM_ORDER") {
+      const { name, phone, address, orderType, paymentMethod } = session.deliveryData;
+      const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const orderId = "KAV" + Date.now();
+
+      const orderTypeLabel =
+        orderType === "OT_DELIVERY" ? "Home Delivery" :
+        orderType === "OT_TAKEAWAY" ? "Take Away" : "Dine In";
+
+      const payLabel =
+        paymentMethod === "PAY_COD" ? "Cash on Delivery" :
+        paymentMethod === "PAY_UPI" ? "UPI Payment" : "Card Payment";
+
+      const newOrder = new Order({
+        orderId,
+        phone: phone || from,
+        name: name || "Customer",
+        address: address || orderTypeLabel,
+        items: session.cart.map((i) => ({ name: i.name, price: i.price, quantity: i.qty })),
+        totalAmount: total,
+        paymentMethod: payLabel,
+        status: "confirmed",
+      });
+      await newOrder.save();
+      console.log(`✅ Order: ${orderId} | Total: Rs.${total}`);
+
+      // Reset session
+      session.cart = [];
+      session.deliveryData = {};
+      session.deliveryStep = null;
+      session.state = "WELCOME";
+      session.markModified("cart");
+      session.markModified("deliveryData");
+      await session.save();
+
+      const itemsList = newOrder.items.map((i) => `• ${i.name} x${i.quantity} = Rs.${i.price * i.quantity}`).join("\n");
+
+      await sendButtons(
+        from,
+        `🎉 *Order Placed Successfully!*\n\n` +
+        `📋 *Order ID:* #${orderId}\n` +
+        `─────────────────\n` +
+        `*Items:*\n${itemsList}\n` +
+        `─────────────────\n` +
+        `💰 *Total: Rs.${total}*\n` +
+        `💳 *Payment:* ${payLabel}\n` +
+        `🚚 *Type:* ${orderTypeLabel}\n` +
+        `🏠 *Address:* ${address || orderTypeLabel}\n` +
+        `─────────────────\n` +
+        `⏱️ *Estimated Time:* 30-45 mins\n\n` +
+        `Thank you for ordering from Kavi Chettinadu! 🙏`,
+        [
+          { id: "BROWSE_MENU", title: "🔄 Order Again" },
+          { id: "exit", title: "❌ Exit" },
+        ]
+      );
       return;
     }
 
@@ -524,15 +791,14 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData =
       from,
       `🤔 I didn't understand that.\n\nSend *hi* to start ordering!`,
       [
-        { id: "PLACE_ORDER_FLOW", title: "🍴 Order Now"   },
-        { id: "CONTACT",          title: "📍 Contact Us"  },
-        { id: "EXIT",             title: "❌ Exit"         },
+        { id: "hi", title: "🍴 Start Ordering" },
+        { id: "VIEW_CART", title: "🛒 View Cart" },
+        { id: "exit", title: "❌ Exit" },
       ]
     );
 
   } catch (err) {
     console.error("❌ handleMessage Error:", err.message);
-    if (err.response?.data) console.error(JSON.stringify(err.response.data, null, 2));
   }
 };
 
