@@ -6,11 +6,10 @@ const path = require("path");
 const Order = require("../models/Order");
 const { sendOrderConfirmation } = require("../config/whatsapp");
 
-// ── Load Private Key ──────────────────────────────────────
-const privateKey = fs.readFileSync(
-  path.join(__dirname, "../private.pem"),
-  "utf8"
-);
+// ── Load Private Key (env variable or file) ───────────────
+const privateKey = process.env.PRIVATE_KEY
+  ? process.env.PRIVATE_KEY.replace(/\\n/g, "\n")
+  : fs.readFileSync(path.join(__dirname, "../private.pem"), "utf8");
 
 // ── Decrypt Request from Meta ─────────────────────────────
 function decryptRequest(body) {
@@ -247,7 +246,6 @@ router.post("/endpoint", async (req, res) => {
     const body = req.body;
 
     // ── Health Check Ping (unencrypted) ───────────────────
-    // Meta sends: { action: "ping" } without encryption
     if (body?.action === "ping") {
       console.log("✅ Health check ping received (unencrypted)");
       return res.status(200).json({ data: { status: "active" } });
@@ -279,7 +277,6 @@ router.post("/endpoint", async (req, res) => {
       );
     }
 
-    // phone from flow_token: order_<phone>_<timestamp>
     const phone = flow_token?.split("_")[1];
 
     // ── Item screens → go to DELIVERY_DETAILS ─────────────
@@ -295,11 +292,7 @@ router.post("/endpoint", async (req, res) => {
         encryptResponse(
           {
             screen: "DELIVERY_DETAILS",
-            data: {
-              ...data,
-              error_messages: {},
-              init_values: {},
-            },
+            data: { ...data, error_messages: {}, init_values: {} },
           },
           aesKey, iv
         )
@@ -310,25 +303,18 @@ router.post("/endpoint", async (req, res) => {
     if (screen === "DELIVERY_DETAILS") {
       return res.status(200).send(
         encryptResponse(
-          {
-            screen: "ORDER_SUMMARY",
-            data: { ...data },
-          },
+          { screen: "ORDER_SUMMARY", data: { ...data } },
           aesKey, iv
         )
       );
     }
 
-    // ── COMPLETE → Save Order + Send Confirmation ─────────
+    // ── COMPLETE → Save Order ─────────────────────────────
     if (action === "complete") {
-      const {
-        customer_name, customer_phone,
-        delivery_address, order_type, note, category,
-      } = data;
+      const { customer_name, customer_phone, delivery_address, order_type } = data;
 
       const items = extractItems(data);
       const totalAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-
       const orderId = "KAV" + Date.now();
 
       const newOrder = new Order({
@@ -343,23 +329,18 @@ router.post("/endpoint", async (req, res) => {
       });
 
       await newOrder.save();
-      console.log(`✅ Order saved: ${orderId} | Items: ${items.length} | Total: Rs.${totalAmount}`);
+      console.log(`✅ Order: ${orderId} | Items: ${items.length} | Total: Rs.${totalAmount}`);
 
-      // Send WhatsApp confirmation
       if (customer_phone || phone) {
         try {
           await sendOrderConfirmation(customer_phone || phone, {
-            orderId,
-            items,
-            totalAmount,
-            paymentMethod: "COD",
-            orderType:
-              order_type === "dine_in"  ? "🍽️ Dine In"      :
-              order_type === "takeaway" ? "🏃 Takeaway"      : "🛵 Home Delivery",
+            orderId, items, totalAmount, paymentMethod: "COD",
+            orderType: order_type === "dine_in" ? "🍽️ Dine In" :
+                       order_type === "takeaway" ? "🏃 Takeaway" : "🛵 Home Delivery",
             address: delivery_address || "",
           });
         } catch (msgErr) {
-          console.error("❌ Confirmation message error:", msgErr.message);
+          console.error("❌ Confirmation error:", msgErr.message);
         }
       }
 
@@ -377,9 +358,7 @@ router.post("/endpoint", async (req, res) => {
     );
 
   } catch (err) {
-    console.error("❌ Flow endpoint error:", err.message);
-    console.error(err.stack);
-    // Return 200 to avoid Meta retries, with error info
+    console.error("❌ Flow error:", err.message);
     return res.status(200).json({ error: "Server Error" });
   }
 });

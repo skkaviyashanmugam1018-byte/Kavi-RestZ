@@ -2,7 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const https = require('https');
 
-const PHONE_NUMBER_ID = "1080505178483186";
+const PHONE_NUMBER_ID = "1208355402355410";
 const ACCESS_TOKEN = process.env.WHATSAPP_API_TOKEN;
 
 if (!ACCESS_TOKEN) {
