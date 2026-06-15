@@ -117,7 +117,6 @@ async function sendCatalogueMessage(to) {
           action: {
             name: "catalog_message",
             parameters: {
-              catalog_id: catalogueId,
               thumbnail_product_retailer_id: "GRILL001",
             },
           },
