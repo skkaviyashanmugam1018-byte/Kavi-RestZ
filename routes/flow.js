@@ -80,7 +80,7 @@ router.post("/endpoint", async (req, res) => {
     }
 
     const { flow_token, data, action, screen } = decryptedBody;
-    console.log("📩 Flow:", JSON.stringify({ action, screen }, null, 2));
+    console.log("📩 Flow:", JSON.stringify({ action, screen, flow_token }, null, 2));
 
     // Encrypted Ping
     if (action === "ping") {
@@ -89,7 +89,11 @@ router.post("/endpoint", async (req, res) => {
       );
     }
 
-    const phone = flow_token?.split("_")[1];
+    // ✅ FIX: Always use phone from flow_token (reliable — set by us when sending flow)
+    // flow_token format: "delivery_917904307757_1735123456789"
+    const tokenParts = (flow_token || "").split("_");
+    const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
+    console.log(`📞 Phone from flow_token: ${phone}`);
 
     // ── DELIVERY_DETAILS → ADDONS_SELECT ─────────────────
     if (screen === "DELIVERY_DETAILS") {
@@ -124,7 +128,7 @@ router.post("/endpoint", async (req, res) => {
       );
     }
 
-    // ── COMPLETE → Save Order + Payment options ───────────
+    // ── COMPLETE → Save session + Send payment options ────
     if (action === "complete") {
       const {
         customer_name, customer_phone,
@@ -134,14 +138,16 @@ router.post("/endpoint", async (req, res) => {
         total_amount,
       } = data;
 
-      const customerPhone = customer_phone || phone;
+      // ✅ FIX: Use phone from flow_token — NOT from form input
+      // User may type 9585960612 (without 91), but session stored as 919585960612
+      const sessionPhone = phone; // from flow_token — always correct
 
       // Calculate addon prices
-      const addonList   = Array.isArray(selected_addons) ? selected_addons : [];
-      const addonItems  = addonList.map((id) => ADDON_PRICES[id]).filter(Boolean);
-      const addonTotal  = addonItems.reduce((s, a) => s + a.price, 0);
-      const baseTotal   = parseFloat(String(total_amount || "0").replace(/[^0-9.]/g, "")) || 0;
-      const grandTotal  = baseTotal + addonTotal;
+      const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
+      const addonItems = addonList.map((id) => ADDON_PRICES[id]).filter(Boolean);
+      const addonTotal = addonItems.reduce((s, a) => s + a.price, 0);
+      const baseTotal  = parseFloat(String(total_amount || "0").replace(/[^0-9.]/g, "")) || 0;
+      const grandTotal = baseTotal + addonTotal;
 
       // Addon text
       const addonText = addonItems.length > 0
@@ -153,35 +159,39 @@ router.post("/endpoint", async (req, res) => {
         ? `📅 Scheduled: ${scheduled_time}`
         : "⚡ ASAP (30-45 mins)";
 
-      // Update session
-      let session = await Session.findOne({ phoneNumber: customerPhone });
+      // Order type label
+      const orderTypeLabel =
+        order_type === "delivery" ? "🚚 Home Delivery" :
+        order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
+
+      // ✅ Update session using flow_token phone
+      let session = await Session.findOne({ phoneNumber: sessionPhone });
       if (session) {
         session.deliveryData = {
-          name:     customer_name     || "Customer",
-          phone:    customer_phone    || phone,
-          address:  delivery_address  || "",
+          name:                 customer_name     || "Customer",
+          phone:                customer_phone    || sessionPhone,
+          address:              delivery_address  || "",
           order_type,
           delivery_time,
           scheduled_time,
-          addons:   addonItems,
-          addon_total: addonTotal,
+          addons:               addonItems,
+          addon_total:          addonTotal,
           special_instructions,
-          grand_total: grandTotal,
+          grand_total:          grandTotal,
         };
         session.state = "PAYMENT_SELECT";
         session.markModified("deliveryData");
         await session.save();
+        console.log(`✅ Session updated for ${sessionPhone} | Grand Total: Rs.${grandTotal}`);
+      } else {
+        console.error(`❌ Session not found for phone: ${sessionPhone}`);
       }
 
-      // Send payment options
-      if (customerPhone) {
+      // ✅ Send payment options to flow_token phone
+      if (sessionPhone) {
         try {
-          const orderTypeLabel =
-            order_type === "delivery" ? "🚚 Home Delivery" :
-            order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
-
           await sendButtons(
-            customerPhone,
+            sessionPhone,
             `✅ *Order details saved!*\n\n` +
             `👤 *Name:* ${customer_name}\n` +
             `📞 *Phone:* ${customer_phone}\n` +
@@ -201,8 +211,9 @@ router.post("/endpoint", async (req, res) => {
               { id: "PAY_CARD", title: "💳 Card Payment"      },
             ]
           );
+          console.log(`✅ Payment options sent to ${sessionPhone}`);
         } catch (msgErr) {
-          console.error("❌ Payment options error:", msgErr.message);
+          console.error("❌ Payment options send error:", msgErr.message);
         }
       }
 
