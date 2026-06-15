@@ -160,7 +160,7 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount) {
               flow_cta: "Enter Delivery Details",
               flow_action: "navigate",
               flow_action_payload: {
-                screen: "ADDRESS_STEP1",
+                screen: "ADDRESS_ONE",
                 data: {
                   cart_summary: cartSummary,
                   total_amount: `Rs.${totalAmount}`,

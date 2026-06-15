@@ -100,12 +100,12 @@ router.post("/endpoint", async (req, res) => {
     const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
     console.log(`📞 Phone from flow_token: ${phone}`);
 
-    // ── ADDRESS_STEP1 → ADDRESS_STEP2 ────────────────────
-    if (screen === "ADDRESS_STEP1") {
-      console.log("📋 ADDRESS_STEP1 → ADDRESS_STEP2");
+    // ── ADDRESS_ONE → ADDRESS_TWO ────────────────────
+    if (screen === "ADDRESS_ONE") {
+      console.log("📋 ADDRESS_ONE → ADDRESS_TWO");
       return res.status(200).send(
         encryptResponse({
-          screen: "ADDRESS_STEP2",
+          screen: "ADDRESS_TWO",
           data: {
             customer_name:  data.customer_name  || "",
             customer_phone: data.customer_phone || "",
@@ -120,9 +120,9 @@ router.post("/endpoint", async (req, res) => {
       );
     }
 
-    // ── ADDRESS_STEP2 → ORDER_TYPE ────────────────────────
-    if (screen === "ADDRESS_STEP2") {
-      console.log("📋 ADDRESS_STEP2 → ORDER_TYPE");
+    // ── ADDRESS_TWO → ORDER_TYPE ────────────────────────
+    if (screen === "ADDRESS_TWO") {
+      console.log("📋 ADDRESS_TWO → ORDER_TYPE");
       return res.status(200).send(
         encryptResponse({
           screen: "ORDER_TYPE",
