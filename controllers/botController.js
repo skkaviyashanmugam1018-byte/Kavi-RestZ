@@ -535,7 +535,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── BROWSE MENU ───────────────────────────────────────
-    if (["BROWSE_MENU", "ADD_MORE", "MAIN_MENU"].includes(input)) {
+    if (["BROWSE_MENU", "ADD_MORE", "MAIN_MENU", "browse_menu"].includes(input)) {
       session.state = "CATEGORY_SELECT";
       await session.save();
       await sendMainMenu(from, 0);
