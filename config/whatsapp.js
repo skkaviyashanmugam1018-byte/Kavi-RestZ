@@ -91,6 +91,45 @@ async function sendImage(to, imageUrl, caption = "") {
   }
 }
 
+// ─── Send WhatsApp Catalogue ──────────────────────────────
+async function sendCatalogueMessage(to) {
+  try {
+    const catalogueId = process.env.CATALOGUE_ID;
+    if (!catalogueId) {
+      console.warn("⚠️ CATALOGUE_ID not set in .env");
+      return;
+    }
+    await axios.post(
+      getBaseUrl(),
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "catalog_message",
+          body: {
+            text: "🍽️ Browse our full Kavi Chettinadu menu!\n\nTap any item to add to cart and place your order. 🛒",
+          },
+          footer: {
+            text: "📍 Rameswaram | 📞 95859 60612",
+          },
+          action: {
+            name: "catalog_message",
+            parameters: {
+              thumbnail_product_retailer_id: "BIRY002",
+            },
+          },
+        },
+      },
+      { headers: HEADERS() }
+    );
+    console.log("✅ Catalogue message sent to:", to);
+  } catch (err) {
+    console.error("❌ sendCatalogueMessage error:", err.response?.data || err.message);
+  }
+}
+
 // ─── Send WhatsApp Flow (Delivery Details) ────────────────
 async function sendDeliveryFlow(to, cartSummary, totalAmount) {
   try {
@@ -105,7 +144,9 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount) {
         interactive: {
           type: "flow",
           header: { type: "text", text: "📦 Delivery Details" },
-          body: { text: `Your cart total: *Rs.${totalAmount}*\n\nPlease fill your delivery details below:` },
+          body: {
+            text: `Your cart total: *Rs.${totalAmount}*\n\nPlease fill your delivery details below:`,
+          },
           footer: { text: "Kavi Chettinadu Restaurant" },
           action: {
             name: "flow",
@@ -134,49 +175,6 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount) {
   }
 }
 
-// ─── Send Order Flow (Welcome) ────────────────────────────
-async function sendOrderFlow(to) {
-  try {
-    const flowToken = `order_${to}_${Date.now()}`;
-    await axios.post(
-      getBaseUrl(),
-      {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "interactive",
-        interactive: {
-          type: "flow",
-          header: { type: "text", text: "🍛 Kavi Chettinadu Restaurant" },
-          body: { text: "Taste The Tradition! 🏛️\n\nOrder now and enjoy authentic Chettinadu food! 👇" },
-          footer: { text: "📍 Rameswaram | 📞 9585960612" },
-          action: {
-            name: "flow",
-            parameters: {
-              flow_message_version: "3",
-              flow_token: flowToken,
-              flow_id: process.env.FLOW_ID,
-              flow_cta: "🛒 Order Now",
-              flow_action: "navigate",
-              flow_action_payload: {
-                screen: "DELIVERY_DETAILS",
-                data: {
-                  cart_summary: "Browse our menu",
-                  total_amount: "Rs.0",
-                },
-              },
-            },
-          },
-        },
-      },
-      { headers: HEADERS() }
-    );
-    console.log("✅ Order Flow sent to:", to);
-  } catch (err) {
-    console.error("❌ sendOrderFlow error:", err.response?.data || err.message);
-  }
-}
-
 // ─── Send Order Confirmation ──────────────────────────────
 async function sendOrderConfirmation(to, order) {
   try {
@@ -202,7 +200,7 @@ async function sendOrderConfirmation(to, order) {
       `─────────────────\n` +
       `⏱️ Est. Delivery: 30-45 mins\n\n` +
       `Thank you for ordering from Kavi Chettinadu! 🙏\n` +
-      `📞 9585960612 / 9585960613`
+      `📞 95859 60612 / 95859 60613`
     );
   } catch (err) {
     console.error("❌ sendOrderConfirmation error:", err.message);
@@ -214,7 +212,7 @@ module.exports = {
   sendButtons,
   sendList,
   sendImage,
+  sendCatalogueMessage,
   sendDeliveryFlow,
-  sendOrderFlow,
   sendOrderConfirmation,
 };

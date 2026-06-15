@@ -272,26 +272,38 @@ function buildCartSummary(cart) {
 // ═══════════════════════════════════════════════════════════
 // SEND FUNCTIONS
 // ═══════════════════════════════════════════════════════════
-async function sendMainMenu(to) {
+async function sendMainMenu(to, page = 0) {
   const allCategories = Object.entries(MENU);
-  const rows1 = allCategories.slice(0, 10).map(([key, cat]) => ({
+  // Max 10 rows per section, max 10 rows total in list
+  const PAGE_SIZE = 9;
+  const start = page * PAGE_SIZE;
+  const pageCategories = allCategories.slice(start, start + PAGE_SIZE);
+  const hasMore = allCategories.length > start + PAGE_SIZE;
+
+  const rows = pageCategories.map(([key, cat]) => ({
     id: `CAT_${key}`,
     title: cat.label,
     description: `${cat.items.length} items`,
   }));
-  const rows2 = allCategories.slice(10).map(([key, cat]) => ({
-    id: `CAT_${key}`,
-    title: cat.label,
-    description: `${cat.items.length} items`,
-  }));
-  const sections = [{ title: "🍽️ Menu Categories", rows: rows1 }];
-  if (rows2.length > 0) sections.push({ title: "More Categories", rows: rows2 });
+
+  if (hasMore) rows.push({
+    id: `MENU_PAGE_${page + 1}`,
+    title: "➡️ More Categories",
+    description: "See more"
+  });
+
+  if (page > 0) rows.push({
+    id: `MENU_PAGE_${page - 1}`,
+    title: "⬅️ Previous",
+    description: "Go back"
+  });
+
   await sendList(
     to,
     "🍽️ Kavi Chettinadu Restaurant",
-    "Authentic Chettinad flavours from Rameswaram! 🌶️\n\nSelect a category:",
+    `Authentic Chettinad flavours! 🌶️\nPage ${page + 1} — Select a category:`,
     "Browse Menu",
-    sections
+    [{ title: "🍽️ Menu Categories", rows }]
   );
 }
 
@@ -526,7 +538,16 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (["BROWSE_MENU", "ADD_MORE", "MAIN_MENU"].includes(input)) {
       session.state = "CATEGORY_SELECT";
       await session.save();
-      await sendMainMenu(from);
+      await sendMainMenu(from, 0);
+      return;
+    }
+
+    // ── MENU PAGINATION ───────────────────────────────────
+    if (input?.startsWith("MENU_PAGE_")) {
+      const page = parseInt(input.replace("MENU_PAGE_", ""));
+      session.state = "CATEGORY_SELECT";
+      await session.save();
+      await sendMainMenu(from, page);
       return;
     }
 
