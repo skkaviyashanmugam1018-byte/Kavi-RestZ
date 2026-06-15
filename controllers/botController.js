@@ -10,6 +10,11 @@ const {
 } = require("../config/whatsapp");
 
 // ═══════════════════════════════════════════════════════════
+// HELPER — Truncate list row titles (WhatsApp max: 24 chars)
+// ═══════════════════════════════════════════════════════════
+const t24 = (str) => (str && str.length > 24 ? str.substring(0, 21) + "..." : str || "");
+
+// ═══════════════════════════════════════════════════════════
 // MENU DATA — from kavirestaurant.in
 // ═══════════════════════════════════════════════════════════
 const MENU = {
@@ -30,12 +35,12 @@ const MENU = {
       { id: "gobi_65",              name: "Gobi 65",                   price: 150 },
       { id: "mushroom_65",          name: "Mushroom 65",               price: 150 },
       { id: "paneer_tikka",         name: "Paneer Tikka",              price: 160 },
-      { id: "chilly_chicken_bl",    name: "Chilly Chicken (Boneless)", price: 200 },
+      { id: "chilly_chicken_bl",    name: "Chilly Chicken (BL)",       price: 200 },
       { id: "chicken_tikka",        name: "Chicken Tikka",             price: 180 },
       { id: "chicken_65_bl",        name: "Chicken 65 (Boneless)",     price: 200 },
       { id: "chicken_65_wb",        name: "Chicken 65 (With Bone)",    price: 170 },
       { id: "honey_chicken",        name: "Honey Chicken",             price: 220 },
-      { id: "chicken_lollipop",     name: "Chicken Lollipop (5pcs)",   price: 200 },
+      { id: "chicken_lollipop",     name: "Chicken Lollipop 5pcs",     price: 200 },
       { id: "dragon_chicken",       name: "Dragon Chicken",            price: 200 },
       { id: "chicken_kola_urundai", name: "Chicken Kola Urundai",      price: 160 },
       { id: "alfaham_chicken",      name: "Alfaham Chicken",           price: 200 },
@@ -44,12 +49,12 @@ const MENU = {
   bbq_grill: {
     label: "🔥 BBQ / Grill",
     items: [
-      { id: "grill_full",    name: "Grill Chicken - Full",    price: 460 },
-      { id: "grill_half",    name: "Grill Chicken - Half",    price: 240 },
-      { id: "grill_quarter", name: "Grill Chicken - Quarter", price: 130 },
-      { id: "bbq_full",      name: "BBQ Chicken - Full",      price: 480 },
-      { id: "bbq_half",      name: "BBQ Chicken - Half",      price: 250 },
-      { id: "bbq_quarter",   name: "BBQ Chicken - Quarter",   price: 130 },
+      { id: "grill_full",    name: "Grill Chicken Full",      price: 460 },
+      { id: "grill_half",    name: "Grill Chicken Half",      price: 240 },
+      { id: "grill_quarter", name: "Grill Chicken Quarter",   price: 130 },
+      { id: "bbq_full",      name: "BBQ Chicken Full",        price: 480 },
+      { id: "bbq_half",      name: "BBQ Chicken Half",        price: 250 },
+      { id: "bbq_quarter",   name: "BBQ Chicken Quarter",     price: 130 },
       { id: "bbq_wings",     name: "BBQ Juicy Wings 5pcs",    price: 200 },
       { id: "bbq_boneless",  name: "BBQ Boneless Strips 5pcs",price: 180 },
       { id: "bbq_drumstick", name: "BBQ Drumstick 2pcs",      price: 180 },
@@ -58,26 +63,26 @@ const MENU = {
   tandoori: {
     label: "🍗 Tandoori",
     items: [
-      { id: "tand_full",      name: "Tandoori Chicken - Full",    price: 480 },
-      { id: "tand_half",      name: "Tandoori Chicken - Half",    price: 250 },
-      { id: "tand_quarter",   name: "Tandoori Chicken - Quarter", price: 130 },
-      { id: "chicken_tikka_7",name: "Chicken Tikka 7pcs",         price: 480 },
-      { id: "drumstick_4pcs", name: "Drumstick Chicken 4pcs",     price: 280 },
-      { id: "tand_pomfret",   name: "Tandoori Pomfret Fish",      price: 360 },
-      { id: "tand_platter",   name: "Tandoori Platter",           price: 500 },
-      { id: "fish_tikka",     name: "Fish Tikka",                 price: 200 },
-      { id: "prawns_tikka",   name: "Prawns Tikka",               price: 200 },
+      { id: "tand_full",      name: "Tandoori Chicken Full",   price: 480 },
+      { id: "tand_half",      name: "Tandoori Chicken Half",   price: 250 },
+      { id: "tand_quarter",   name: "Tandoori Chicken Qtr",    price: 130 },
+      { id: "chicken_tikka_7",name: "Chicken Tikka 7pcs",      price: 480 },
+      { id: "drumstick_4pcs", name: "Drumstick Chicken 4pcs",  price: 280 },
+      { id: "tand_pomfret",   name: "Tandoori Pomfret Fish",   price: 360 },
+      { id: "tand_platter",   name: "Tandoori Platter",        price: 500 },
+      { id: "fish_tikka",     name: "Fish Tikka",              price: 200 },
+      { id: "prawns_tikka",   name: "Prawns Tikka",            price: 200 },
     ],
   },
   fried_chicken: {
     label: "🍗 Fried Chicken",
     items: [
-      { id: "bucket_5pcs",    name: "Bucket 5pcs",         price: 450 },
-      { id: "bucket_10pcs",   name: "Bucket 10pcs",        price: 450 },
-      { id: "lolipop_5pcs",   name: "Lolipop 5pcs",        price: 250 },
-      { id: "wings_5pcs",     name: "Wings 5pcs",          price: 250 },
-      { id: "boneless_strips",name: "Boneless Strips 5pcs", price: 200 },
-      { id: "popcorn",        name: "Popcorn Chicken",     price: 160 },
+      { id: "bucket_5pcs",    name: "Bucket 5pcs",             price: 450 },
+      { id: "bucket_10pcs",   name: "Bucket 10pcs",            price: 450 },
+      { id: "lolipop_5pcs",   name: "Lolipop 5pcs",            price: 250 },
+      { id: "wings_5pcs",     name: "Wings 5pcs",              price: 250 },
+      { id: "boneless_strips",name: "Boneless Strips 5pcs",    price: 200 },
+      { id: "popcorn",        name: "Popcorn Chicken",         price: 160 },
     ],
   },
   briyani: {
@@ -93,132 +98,132 @@ const MENU = {
   bucket_briyani: {
     label: "🪣 Bucket Briyani",
     items: [
-      { id: "bucket_mutton_full",   name: "Bucket Mutton Full (8 Persons)",   price: 2700 },
-      { id: "bucket_mutton_half",   name: "Bucket Mutton Half (4 Persons)",   price: 1500 },
-      { id: "bucket_chicken_full",  name: "Bucket Chicken Full (8 Persons)",  price: 2100 },
-      { id: "bucket_chicken_half",  name: "Bucket Chicken Half (4 Persons)",  price: 1200 },
+      { id: "bucket_mutton_full",  name: "Bucket Mutton Full",  price: 2700 },
+      { id: "bucket_mutton_half",  name: "Bucket Mutton Half",  price: 1500 },
+      { id: "bucket_chicken_full", name: "Bucket Chicken Full", price: 2100 },
+      { id: "bucket_chicken_half", name: "Bucket Chicken Half", price: 1200 },
     ],
   },
   dry_fry: {
     label: "🍖 Dry / Fry",
     items: [
-      { id: "gobi_man_dry",    name: "Gobi Manchurian Dry",     price: 180 },
-      { id: "paneer_man_dry",  name: "Paneer Manchurian Dry",   price: 180 },
-      { id: "mushroom_man_dry",name: "Mushroom Manchurian Dry", price: 180 },
-      { id: "mutton_sukka",    name: "Mutton Sukka",            price: 220 },
-      { id: "karaikudi_sukka", name: "Karaikudi Chicken Sukka", price: 180 },
-      { id: "era_thokku",      name: "Era Thokku",              price: 200 },
-      { id: "chicken_chettinad",name:"Chicken Chettinadu Masala",price: 220 },
-      { id: "pepper_chkn_dry", name: "Pepper Chicken Dry",      price: 200 },
-      { id: "chilly_chkn_dry", name: "Chilly Chicken Dry",      price: 200 },
-      { id: "schezwan_chicken",name: "Schezwan Chicken",         price: 210 },
-      { id: "egg_pepper_fry",  name: "Egg Pepper Fry",          price: 120 },
+      { id: "gobi_man_dry",     name: "Gobi Manchurian Dry",    price: 180 },
+      { id: "paneer_man_dry",   name: "Paneer Manchurian Dry",  price: 180 },
+      { id: "mushroom_man_dry", name: "Mushroom Manchurian Dry",price: 180 },
+      { id: "mutton_sukka",     name: "Mutton Sukka",           price: 220 },
+      { id: "karaikudi_sukka",  name: "Karaikudi Chicken Sukka",price: 180 },
+      { id: "era_thokku",       name: "Era Thokku",             price: 200 },
+      { id: "chicken_chettinad",name: "Chettinad Chicken",      price: 220 },
+      { id: "pepper_chkn_dry",  name: "Pepper Chicken Dry",     price: 200 },
+      { id: "chilly_chkn_dry",  name: "Chilly Chicken Dry",     price: 200 },
+      { id: "schezwan_chicken", name: "Schezwan Chicken",       price: 210 },
+      { id: "egg_pepper_fry",   name: "Egg Pepper Fry",         price: 120 },
     ],
   },
   gravy: {
     label: "🫕 Gravy",
     items: [
-      { id: "gobi_man_gravy",    name: "Gobi Manchurian Gravy",     price: 170 },
-      { id: "paneer_man_gravy",  name: "Paneer Manchurian Gravy",   price: 180 },
-      { id: "mushroom_man_gravy",name: "Mushroom Manchurian Gravy", price: 180 },
-      { id: "veg_kadai",         name: "Veg Kadai",                 price: 180 },
-      { id: "kadai_paneer",      name: "Kadai Paneer",              price: 180 },
-      { id: "dal_fry",           name: "Dal Fry",                   price: 180 },
-      { id: "paneer_butter",     name: "Paneer Butter Masala",      price: 200 },
-      { id: "aloo_gobi",         name: "Aloo Gobi Masala",          price: 180 },
-      { id: "butter_chicken",    name: "Butter Chicken Masala BL",  price: 220 },
-      { id: "chicken_tikka_masala",name:"Chicken Tikka Masala BL",  price: 220 },
-      { id: "pepper_chkn_gravy", name: "Pepper Chicken Gravy",      price: 220 },
-      { id: "chettinad_gravy",   name: "Chettinadu Chicken Gravy",  price: 220 },
-      { id: "kadai_chicken",     name: "Kadai Chicken Gravy",       price: 220 },
-      { id: "chicken_man_gravy", name: "Chicken Manchurian Gravy",  price: 220 },
-      { id: "schezwan_chkn_gravy",name:"Schezwan Chicken Gravy",    price: 220 },
-      { id: "mutton_masala",     name: "Mutton Masala Bone",        price: 300 },
-      { id: "manchatti_meen",    name: "Manchatti Meen Kuzhambu",   price: 160 },
+      { id: "gobi_man_gravy",      name: "Gobi Manchurian Gravy",  price: 170 },
+      { id: "paneer_man_gravy",    name: "Paneer Manchurian Gravy",price: 180 },
+      { id: "mushroom_man_gravy",  name: "Mushroom Manchurian",    price: 180 },
+      { id: "veg_kadai",           name: "Veg Kadai",              price: 180 },
+      { id: "kadai_paneer",        name: "Kadai Paneer",           price: 180 },
+      { id: "dal_fry",             name: "Dal Fry",                price: 180 },
+      { id: "paneer_butter",       name: "Paneer Butter Masala",   price: 200 },
+      { id: "aloo_gobi",           name: "Aloo Gobi Masala",       price: 180 },
+      { id: "butter_chicken",      name: "Butter Chicken BL",      price: 220 },
+      { id: "chicken_tikka_masala",name: "Chicken Tikka Masala",   price: 220 },
+      { id: "pepper_chkn_gravy",   name: "Pepper Chicken Gravy",   price: 220 },
+      { id: "chettinad_gravy",     name: "Chettinad Chicken",      price: 220 },
+      { id: "kadai_chicken",       name: "Kadai Chicken Gravy",    price: 220 },
+      { id: "chicken_man_gravy",   name: "Chicken Manchurian",     price: 220 },
+      { id: "schezwan_chkn_gravy", name: "Schezwan Chicken Gravy", price: 220 },
+      { id: "mutton_masala",       name: "Mutton Masala Bone",     price: 300 },
+      { id: "manchatti_meen",      name: "Manchatti Meen Kuzhambu",price: 160 },
     ],
   },
   seafoods: {
     label: "🦞 Seafoods",
     items: [
-      { id: "nethili_fry",    name: "Nethili Fish Fry",     price: 160 },
-      { id: "vanjaram_masala",name: "Vanjaram Fish Masala", price: 180 },
-      { id: "vila_meen_fry",  name: "Vila Meen Fish Fry",   price: 160 },
-      { id: "vaval_fry",      name: "Vaval Fish Fry",       price: 250 },
-      { id: "tawa_vanjaram",  name: "Tawa Vanjaram Fry",    price: 150 },
-      { id: "meen_polichathu",name: "Meen Polichathu",      price: 250 },
-      { id: "special_fish",   name: "Special Fish Fry",     price: 300 },
-      { id: "boiled_fish",    name: "Boiled Fish (2 Fish)", price: 300 },
-      { id: "crab_masala",    name: "Crab Masala",          price: 300 },
-      { id: "squid_masala",   name: "Squid Masala",         price: 220 },
-      { id: "prawns_fry",     name: "Prawns Fry",           price: 200 },
-      { id: "prawns_masala",  name: "Prawns Masala",        price: 250 },
-      { id: "prawns_pepper",  name: "Prawns Pepper Fry",    price: 230 },
-      { id: "prawns_65",      name: "Prawns 65",            price: 220 },
+      { id: "nethili_fry",     name: "Nethili Fish Fry",      price: 160 },
+      { id: "vanjaram_masala", name: "Vanjaram Fish Masala",  price: 180 },
+      { id: "vila_meen_fry",   name: "Vila Meen Fish Fry",    price: 160 },
+      { id: "vaval_fry",       name: "Vaval Fish Fry",        price: 250 },
+      { id: "tawa_vanjaram",   name: "Tawa Vanjaram Fry",     price: 150 },
+      { id: "meen_polichathu", name: "Meen Polichathu",       price: 250 },
+      { id: "special_fish",    name: "Special Fish Fry",      price: 300 },
+      { id: "boiled_fish",     name: "Boiled Fish (2 Fish)",  price: 300 },
+      { id: "crab_masala",     name: "Crab Masala",           price: 300 },
+      { id: "squid_masala",    name: "Squid Masala",          price: 220 },
+      { id: "prawns_fry",      name: "Prawns Fry",            price: 200 },
+      { id: "prawns_masala",   name: "Prawns Masala",         price: 250 },
+      { id: "prawns_pepper",   name: "Prawns Pepper Fry",     price: 230 },
+      { id: "prawns_65",       name: "Prawns 65",             price: 220 },
     ],
   },
   indian_breads: {
     label: "🫓 Indian Breads",
     items: [
-      { id: "chappathi",      name: "Chappathi Set",          price: 50  },
-      { id: "parotta",        name: "Parotta Set",            price: 50  },
-      { id: "veechu_parotta", name: "Veechu Parotta",         price: 50  },
-      { id: "egg_veechu",     name: "Egg Veechu Parotta",     price: 70  },
-      { id: "egg_kothu",      name: "Egg Kothu Parotta",      price: 140 },
-      { id: "chicken_kothu",  name: "Chicken Kothu Parotta",  price: 180 },
-      { id: "chilly_parotta", name: "Chilly Parotta",         price: 130 },
-      { id: "ceylon_parotta", name: "Ceylon Chicken Parotta", price: 150 },
-      { id: "naan",           name: "Naan",                   price: 60  },
-      { id: "butter_naan",    name: "Butter Naan",            price: 70  },
-      { id: "rotti",          name: "Rotti",                  price: 40  },
-      { id: "butter_rotti",   name: "Butter Rotti",           price: 50  },
-      { id: "pulka",          name: "Pulka (2pcs)",           price: 50  },
-      { id: "kulcha",         name: "Kulcha",                 price: 60  },
-      { id: "butter_kulcha",  name: "Butter Kulcha",          price: 70  },
-      { id: "garlic_naan",    name: "Garlic Naan",            price: 80  },
+      { id: "chappathi",       name: "Chappathi Set",          price: 50  },
+      { id: "parotta",         name: "Parotta Set",            price: 50  },
+      { id: "veechu_parotta",  name: "Veechu Parotta",         price: 50  },
+      { id: "egg_veechu",      name: "Egg Veechu Parotta",     price: 70  },
+      { id: "egg_kothu",       name: "Egg Kothu Parotta",      price: 140 },
+      { id: "chicken_kothu",   name: "Chicken Kothu Parotta",  price: 180 },
+      { id: "chilly_parotta",  name: "Chilly Parotta",         price: 130 },
+      { id: "ceylon_parotta",  name: "Ceylon Chicken Parotta", price: 150 },
+      { id: "naan",            name: "Naan",                   price: 60  },
+      { id: "butter_naan",     name: "Butter Naan",            price: 70  },
+      { id: "rotti",           name: "Rotti",                  price: 40  },
+      { id: "butter_rotti",    name: "Butter Rotti",           price: 50  },
+      { id: "pulka",           name: "Pulka (2pcs)",           price: 50  },
+      { id: "kulcha",          name: "Kulcha",                 price: 60  },
+      { id: "butter_kulcha",   name: "Butter Kulcha",          price: 70  },
+      { id: "garlic_naan",     name: "Garlic Naan",            price: 80  },
     ],
   },
   noodles: {
     label: "🍜 Noodles",
     items: [
-      { id: "veg_noodles",     name: "Veg Noodles",              price: 120 },
-      { id: "egg_noodles",     name: "Egg Noodles",              price: 140 },
-      { id: "chicken_noodles", name: "Chicken Noodles",          price: 160 },
-      { id: "fish_noodles",    name: "Fish Noodles",             price: 180 },
-      { id: "prawns_noodles",  name: "Prawns Noodles",           price: 200 },
-      { id: "mixed_noodles",   name: "Mixed Noodles",            price: 220 },
-      { id: "sch_egg_noodles", name: "Schezwan Egg Noodles",     price: 150 },
-      { id: "sch_fish_noodles",name: "Schezwan Fish Noodles",    price: 200 },
-      { id: "sch_chkn_noodles",name: "Schezwan Chicken Noodles", price: 180 },
+      { id: "veg_noodles",      name: "Veg Noodles",              price: 120 },
+      { id: "egg_noodles",      name: "Egg Noodles",              price: 140 },
+      { id: "chicken_noodles",  name: "Chicken Noodles",          price: 160 },
+      { id: "fish_noodles",     name: "Fish Noodles",             price: 180 },
+      { id: "prawns_noodles",   name: "Prawns Noodles",           price: 200 },
+      { id: "mixed_noodles",    name: "Mixed Noodles",            price: 220 },
+      { id: "sch_egg_noodles",  name: "Schezwan Egg Noodles",     price: 150 },
+      { id: "sch_fish_noodles", name: "Schezwan Fish Noodles",    price: 200 },
+      { id: "sch_chkn_noodles", name: "Schezwan Chicken Noodles", price: 180 },
     ],
   },
   fried_rice: {
     label: "🍚 Fried Rice",
     items: [
-      { id: "veg_rice",      name: "Veg Fried Rice",                 price: 120 },
-      { id: "jeera_rice",    name: "Jeera Fried Rice",               price: 150 },
-      { id: "ghee_rice",     name: "Ghee Fried Rice",                price: 150 },
-      { id: "egg_rice",      name: "Egg Fried Rice",                 price: 140 },
-      { id: "chicken_rice",  name: "Chicken Fried Rice",             price: 160 },
-      { id: "prawns_rice",   name: "Prawns Fried Rice",              price: 200 },
-      { id: "sch_egg_rice",  name: "Schezwan Egg Fried Rice",        price: 150 },
-      { id: "sch_chkn_rice", name: "Schezwan Chicken Fried Rice",    price: 180 },
-      { id: "sch_prwn_rice", name: "Schezwan Prawns Fried Rice",     price: 220 },
-      { id: "sch_mixed_rice",name: "Schezwan Mixed Meat Fried Rice", price: 220 },
+      { id: "veg_rice",       name: "Veg Fried Rice",              price: 120 },
+      { id: "jeera_rice",     name: "Jeera Fried Rice",            price: 150 },
+      { id: "ghee_rice",      name: "Ghee Fried Rice",             price: 150 },
+      { id: "egg_rice",       name: "Egg Fried Rice",              price: 140 },
+      { id: "chicken_rice",   name: "Chicken Fried Rice",          price: 160 },
+      { id: "prawns_rice",    name: "Prawns Fried Rice",           price: 200 },
+      { id: "sch_egg_rice",   name: "Schezwan Egg Fried Rice",     price: 150 },
+      { id: "sch_chkn_rice",  name: "Schezwan Chicken Rice",       price: 180 },
+      { id: "sch_prwn_rice",  name: "Schezwan Prawns Rice",        price: 220 },
+      { id: "sch_mixed_rice", name: "Schezwan Mixed Fried Rice",   price: 220 },
     ],
   },
   tiffin: {
     label: "🥞 Tiffin",
     items: [
-      { id: "kal_dosa",        name: "Kal Dosa",               price: 50  },
-      { id: "plain_dosa",      name: "Plain Dosa",             price: 50  },
-      { id: "ghee_roast",      name: "Ghee Roast",             price: 70  },
-      { id: "plain_roast",     name: "Plain Roast",            price: 60  },
-      { id: "uthappam",        name: "Uthappam",               price: 50  },
-      { id: "onion_uthappam",  name: "Onion Uthappam",         price: 70  },
-      { id: "egg_dosai",       name: "Egg Dosai",              price: 70  },
-      { id: "idly",            name: "Idly (2pcs)",            price: 30  },
-      { id: "idiyappam",       name: "Idiyappam (2pcs)",       price: 30  },
-      { id: "chicken_uthappam",name: "Chicken Curry Uthappam", price: 120 },
+      { id: "kal_dosa",         name: "Kal Dosa",               price: 50  },
+      { id: "plain_dosa",       name: "Plain Dosa",             price: 50  },
+      { id: "ghee_roast",       name: "Ghee Roast",             price: 70  },
+      { id: "plain_roast",      name: "Plain Roast",            price: 60  },
+      { id: "uthappam",         name: "Uthappam",               price: 50  },
+      { id: "onion_uthappam",   name: "Onion Uthappam",         price: 70  },
+      { id: "egg_dosai",        name: "Egg Dosai",              price: 70  },
+      { id: "idly",             name: "Idly (2pcs)",            price: 30  },
+      { id: "idiyappam",        name: "Idiyappam (2pcs)",       price: 30  },
+      { id: "chicken_uthappam", name: "Chicken Curry Uthappam", price: 120 },
     ],
   },
   meals: {
@@ -231,14 +236,14 @@ const MENU = {
   eggies: {
     label: "🥚 Eggies",
     items: [
-      { id: "omelette",       name: "Omelette",        price: 25  },
-      { id: "double_omelette",name: "Double Omelette", price: 50  },
-      { id: "half_boil",      name: "Half Boil",       price: 20  },
-      { id: "full_boil",      name: "Full Boil",       price: 20  },
-      { id: "boiled_egg",     name: "Boiled Egg 2pcs", price: 40  },
-      { id: "masala_kalakki", name: "Masala Kalakki",  price: 30  },
-      { id: "egg_burji",      name: "Egg Burji",       price: 70  },
-      { id: "egg_masala",     name: "Egg Masala",      price: 120 },
+      { id: "omelette",        name: "Omelette",        price: 25  },
+      { id: "double_omelette", name: "Double Omelette", price: 50  },
+      { id: "half_boil",       name: "Half Boil",       price: 20  },
+      { id: "full_boil",       name: "Full Boil",       price: 20  },
+      { id: "boiled_egg",      name: "Boiled Egg 2pcs", price: 40  },
+      { id: "masala_kalakki",  name: "Masala Kalakki",  price: 30  },
+      { id: "egg_burji",       name: "Egg Burji",       price: 70  },
+      { id: "egg_masala",      name: "Egg Masala",      price: 120 },
     ],
   },
 };
@@ -274,7 +279,6 @@ function buildCartSummary(cart) {
 // ═══════════════════════════════════════════════════════════
 async function sendMainMenu(to, page = 0) {
   const allCategories = Object.entries(MENU);
-  // Max 10 rows per section, max 10 rows total in list
   const PAGE_SIZE = 9;
   const start = page * PAGE_SIZE;
   const pageCategories = allCategories.slice(start, start + PAGE_SIZE);
@@ -282,25 +286,25 @@ async function sendMainMenu(to, page = 0) {
 
   const rows = pageCategories.map(([key, cat]) => ({
     id: `CAT_${key}`,
-    title: cat.label,
+    title: t24(cat.label),            // ✅ truncate category label
     description: `${cat.items.length} items`,
   }));
 
   if (hasMore) rows.push({
     id: `MENU_PAGE_${page + 1}`,
     title: "➡️ More Categories",
-    description: "See more"
+    description: "See more",
   });
 
   if (page > 0) rows.push({
     id: `MENU_PAGE_${page - 1}`,
     title: "⬅️ Previous",
-    description: "Go back"
+    description: "Go back",
   });
 
   await sendList(
     to,
-    "🍽️ Kavi Chettinadu Restaurant",
+    "🍽️ Kavi Chettinadu",
     `Authentic Chettinad flavours! 🌶️\nPage ${page + 1} — Select a category:`,
     "Browse Menu",
     [{ title: "🍽️ Menu Categories", rows }]
@@ -314,14 +318,17 @@ async function sendCategoryItems(to, catKey, page = 0) {
   const start     = page * PAGE_SIZE;
   const pageItems = cat.items.slice(start, start + PAGE_SIZE);
   const hasMore   = cat.items.length > start + PAGE_SIZE;
-  const rows      = pageItems.map((item) => ({
+
+  const rows = pageItems.map((item) => ({
     id: `ITEM_${item.id}`,
-    title: item.name,
+    title: t24(item.name),            // ✅ truncate item name to 24 chars
     description: `Rs.${item.price}`,
   }));
+
   if (hasMore) rows.push({ id: `MORE_${catKey}_${page + 1}`, title: "➡️ More Items", description: "See more" });
   if (page > 0) rows.push({ id: `MORE_${catKey}_${page - 1}`, title: "⬅️ Previous",  description: "Go back" });
-  await sendList(to, cat.label, "Select an item to add to cart:", "Choose Item", [{ title: cat.label, rows }]);
+
+  await sendList(to, t24(cat.label), "Select an item to add to cart:", "Choose Item", [{ title: t24(cat.label), rows }]);
 }
 
 async function sendQuantitySelect(to, item) {
@@ -366,10 +373,10 @@ async function sendPaymentMethod(to, total) {
 // ═══════════════════════════════════════════════════════════
 async function placeOrder(from, session) {
   const { name, phone, address, order_type, paymentMethod, addons, addon_total, special_instructions, grand_total } = session.deliveryData;
-  const cartTotal   = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const addonItems  = (addons || []).map((a) => ({ name: a.name, price: a.price, quantity: 1 }));
-  const finalTotal  = grand_total || cartTotal;
-  const orderId     = "KAV" + Date.now();
+  const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const addonItems = (addons || []).map((a) => ({ name: a.name, price: a.price, quantity: 1 }));
+  const finalTotal = grand_total || cartTotal;
+  const orderId    = "KAV" + Date.now();
 
   const orderTypeLabel =
     order_type === "delivery" ? "🚚 Home Delivery" :
@@ -379,7 +386,6 @@ async function placeOrder(from, session) {
     paymentMethod === "PAY_COD"  ? "💵 Cash on Delivery" :
     paymentMethod === "PAY_UPI"  ? "📲 UPI Payment"      : "💳 Card Payment";
 
-  // Time label
   const timeLabel = session.deliveryData?.delivery_time === "schedule" && session.deliveryData?.scheduled_time
     ? `📅 Scheduled: ${session.deliveryData.scheduled_time}`
     : "⚡ ASAP (30-45 mins)";
@@ -391,13 +397,13 @@ async function placeOrder(from, session) {
 
   const newOrder = new Order({
     orderId,
-    phone:    phone || from,
-    name:     name  || "Customer",
-    address:  address || orderTypeLabel,
-    items:    allItems,
-    totalAmount: finalTotal,
+    phone:         phone || from,
+    name:          name  || "Customer",
+    address:       address || orderTypeLabel,
+    items:         allItems,
+    totalAmount:   finalTotal,
     paymentMethod: payLabel,
-    status: "confirmed",
+    status:        "confirmed",
   });
   await newOrder.save();
   console.log(`✅ Order: ${orderId} | Total: Rs.${finalTotal}`);
@@ -444,7 +450,6 @@ async function handleCatalogueOrder(from, session, catalogueOrder) {
     if (existing >= 0) {
       session.cart[existing].qty += item.quantity || 1;
     } else {
-      // Try to find price from menu
       const menuItem = findItem(item.product_retailer_id);
       session.cart.push({
         itemId: item.product_retailer_id,
@@ -462,9 +467,9 @@ async function handleCatalogueOrder(from, session, catalogueOrder) {
     from,
     `🛒 *Items added from catalogue!*\n\n${buildCartMsg(session.cart)}\n\nReady to place your order?`,
     [
-      { id: "PLACE_ORDER", title: "✅ Place Order" },
-      { id: "VIEW_CATALOGUE", title: "🖼️ More Items" },
-      { id: "CLEAR_CART",  title: "🗑️ Clear Cart"  },
+      { id: "PLACE_ORDER",    title: "✅ Place Order" },
+      { id: "VIEW_CATALOGUE", title: "🖼️ More Items"  },
+      { id: "CLEAR_CART",     title: "🗑️ Clear Cart"  },
     ]
   );
 }
@@ -521,15 +526,17 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── VIEW CATALOGUE ────────────────────────────────────
+    // ✅ FIX: Try catalogue, if it fails fallback to text menu
     if (input === "VIEW_CATALOGUE") {
       session.state = "CATALOGUE";
       await session.save();
-      if (process.env.CATALOGUE_ID) {
-        await sendCatalogueMessage(from);
-      } else {
-        // Catalogue not setup yet — fallback to menu
-        await sendText(from, "🖼️ Catalogue coming soon!\n\nBrowsing text menu instead:");
-        await sendMainMenu(from);
+      const sent = await sendCatalogueMessage(from);
+      if (!sent) {
+        // Catalogue not linked in FB Commerce Manager — fallback to browse menu
+        await sendText(from, "🖼️ Catalogue is being set up. Showing our full menu instead! 🍛");
+        await sendMainMenu(from, 0);
+        session.state = "CATEGORY_SELECT";
+        await session.save();
       }
       return;
     }
@@ -666,7 +673,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           `📲 *UPI Payment Details*\n\n💳 UPI ID: *${upiId}*\n💰 Amount: *Rs.${total}*\n\nPlease complete the payment and confirm below.`
         );
         await sendButtons(from, "Have you completed the UPI payment?", [
-          { id: "UPI_DONE", title: "✅ Payment Done"  },
+          { id: "UPI_DONE", title: "✅ Payment Done"    },
           { id: "PAY_COD",  title: "💵 Pay COD instead" },
         ]);
         return;
@@ -692,9 +699,9 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       from,
       `🤔 I didn't understand that.\n\nSend *hi* to start ordering! 🍛`,
       [
-        { id: "hi",           title: "🍴 Start Ordering"  },
-        { id: "VIEW_CART",    title: "🛒 View Cart"        },
-        { id: "exit",         title: "❌ Exit"              },
+        { id: "hi",        title: "🍴 Start Ordering" },
+        { id: "VIEW_CART", title: "🛒 View Cart"       },
+        { id: "exit",      title: "❌ Exit"             },
       ]
     );
 

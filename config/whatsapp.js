@@ -97,7 +97,7 @@ async function sendCatalogueMessage(to) {
     const catalogueId = process.env.CATALOGUE_ID;
     if (!catalogueId) {
       console.warn("⚠️ CATALOGUE_ID not set in .env");
-      return;
+      return false;
     }
     await axios.post(
       getBaseUrl(),
@@ -125,8 +125,10 @@ async function sendCatalogueMessage(to) {
       { headers: HEADERS() }
     );
     console.log("✅ Catalogue message sent to:", to);
+    return true;
   } catch (err) {
     console.error("❌ sendCatalogueMessage error:", err.response?.data || err.message);
+    return false; // ✅ Return false so caller can fallback
   }
 }
 
