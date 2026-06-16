@@ -702,7 +702,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── GREETING ──────────────────────────────────────────
-    if (["hi", "hello", "hey", "start", "menu", "/menu", "/start"].includes(input)) {
+    if (["hi", "hello", "hey", "start", "menu", "/menu", "/start", "browse menu"].includes(input)) {
       session.state = "MAIN_MENU"; session.cart = []; session.deliveryData = {}; session.deliveryStep = null;
       session.markModified("cart"); session.markModified("deliveryData");
       await session.save();
@@ -995,6 +995,43 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("deliveryData");
       await session.save();
       await placeOrder(from, session);
+      return;
+    }
+
+    // ── ICEBREAKER: SEARCH ───────────────────────────────
+    if (["search", "/search"].includes(input)) {
+      session.state = "CATEGORY_SELECT";
+      await session.save();
+      await sendText(from, "🔍 *Search Menu*\n\nBrowse by category and find your favourite dish! 🍽️");
+      await sendMainMenu(from, 0);
+      return;
+    }
+
+    // ── ICEBREAKER: CONTACT US ────────────────────────────
+    if (["contact us", "contact", "/contact us"].includes(input)) {
+      await sendButtons(
+        from,
+        `📞 *Kavi Chettinadu Restaurant*
+
+` +
+        `📍 14/12A1, Kattupillaiyar Kovil Street
+Rameswaram - 623526
+
+` +
+        `📞 *95859 60612*
+📞 *95859 60613*
+
+` +
+        `⏰ Open: 12:00 PM – 10:30 PM
+
+` +
+        `🌐 kavirestaurant.in`,
+        [
+          { id: "BROWSE_MENU",    title: "📋 Browse Menu"    },
+          { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
+          { id: "exit",           title: "❌ Exit"            },
+        ]
+      );
       return;
     }
 
