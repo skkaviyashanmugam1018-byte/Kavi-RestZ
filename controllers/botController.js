@@ -762,6 +762,25 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
+    // ── MANUAL QUANTITY (type a number while in QUANTITY_SELECT) ─
+    if (session.state === "QUANTITY_SELECT" && session.pendingItem && /^\d+$/.test(rawInput)) {
+      const qty  = parseInt(rawInput);
+      const item = session.pendingItem;
+      if (qty < 1 || qty > 20) {
+        await sendText(from, "⚠️ Please enter a quantity between 1 and 20.");
+        return;
+      }
+      const existing = session.cart.findIndex((c) => c.itemId === item.id);
+      if (existing >= 0) { session.cart[existing].qty += qty; }
+      else { session.cart.push({ itemId: item.id, name: item.name, price: item.price, qty }); }
+      session.pendingItem = null;
+      session.state = "CART";
+      session.markModified("cart");
+      await session.save();
+      await sendAfterAddToCart(from, session.cart);
+      return;
+    }
+
     // ── QUANTITY SELECT ───────────────────────────────────
     if (input?.startsWith("QTY_")) {
       const withoutPrefix = input.replace("QTY_", "");
@@ -835,14 +854,13 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
       const {
         customer_name, customer_phone, alternate_phone,
-        door_no, street, area, pincode,
+        delivery_address, pincode,
         order_type, within_five_km,
         table_persons, table_date, table_time, table_seating,
         selected_addons, special_instructions,
       } = flowData;
 
-      const delivery_address = [door_no, street, area, pincode ? `- ${pincode}` : null]
-        .filter(Boolean).join(", ");
+
 
       const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
       const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
@@ -885,7 +903,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         name:                 customer_name     || "Customer",
         phone:                customer_phone    || from,
         alternate_phone:      alternate_phone   || "",
-        address:              delivery_address,
+        address:              full_address,
         order_type:           order_type        || "delivery",
         delivery_time:        "asap",
         scheduled_time:       "",

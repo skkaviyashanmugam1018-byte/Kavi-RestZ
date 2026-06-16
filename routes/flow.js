@@ -94,15 +94,13 @@ router.post("/endpoint", async (req, res) => {
       return res.status(200).send(encryptResponse({
         screen: "ORDER_TYPE",
         data: {
-          customer_name:   data.customer_name   || "",
-          customer_phone:  data.customer_phone  || "",
-          alternate_phone: data.alternate_phone || "",
-          door_no:         data.door_no         || "",
-          street:          data.street          || "",
-          area:            data.area            || "",
-          pincode:         data.pincode         || "",
-          cart_summary:    data.cart_summary    || "",
-          total_amount:    data.total_amount    || "",
+          customer_name:    data.customer_name    || "",
+          customer_phone:   data.customer_phone   || "",
+          alternate_phone:  data.alternate_phone  || "",
+          delivery_address: data.delivery_address || "",
+          pincode:          data.pincode          || "",
+          cart_summary:     data.cart_summary     || "",
+          total_amount:     data.total_amount     || "",
         }
       }, aesKey, iv));
     }
@@ -113,16 +111,14 @@ router.post("/endpoint", async (req, res) => {
       console.log(`📋 ORDER_TYPE → ${orderType}`);
 
       const commonData = {
-        customer_name:   data.customer_name   || "",
-        customer_phone:  data.customer_phone  || "",
-        alternate_phone: data.alternate_phone || "",
-        door_no:         data.door_no         || "",
-        street:          data.street          || "",
-        area:            data.area            || "",
-        pincode:         data.pincode         || "",
-        order_type:      orderType,
-        cart_summary:    data.cart_summary    || "",
-        total_amount:    data.total_amount    || "",
+        customer_name:    data.customer_name    || "",
+        customer_phone:   data.customer_phone   || "",
+        alternate_phone:  data.alternate_phone  || "",
+        delivery_address: data.delivery_address || "",
+        pincode:          data.pincode          || "",
+        order_type:       orderType,
+        cart_summary:     data.cart_summary     || "",
+        total_amount:     data.total_amount     || "",
       };
 
       // Dine In → Table Booking
@@ -274,7 +270,7 @@ router.post("/endpoint", async (req, res) => {
           name:                 customer_name     || "Customer",
           phone:                customer_phone    || sessionPhone,
           alternate_phone:      alternate_phone   || "",
-          address:              delivery_address,
+          address:              full_address,
           order_type,
           delivery_time:        "asap",
           scheduled_time:       "",
