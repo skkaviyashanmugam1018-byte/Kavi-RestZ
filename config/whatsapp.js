@@ -216,6 +216,5 @@ module.exports = {
   sendImage,
   sendCatalogueMessage,
   sendDeliveryFlow,
-  sendBrowseMenuFlow,
   sendOrderConfirmation,
 };

@@ -735,16 +735,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
-    // ── BROWSE MENU FLOW (new flow-based ordering) ────────
-    if (input === "BROWSE_MENU_FLOW") {
-      session.cart = [];
-      session.markModified("cart");
-      await session.save();
-      await sendDeliveryFlow(from, "", 0);
-      session.state = "AWAITING_FLOW";
-      await session.save();
-      return;
-    }
+
 
     // ── MENU PAGINATION ───────────────────────────────────
     if (input?.startsWith("MENU_PAGE_")) {
@@ -1006,4 +997,4 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
   }
 };
 
-module.exports = { handleMessage, placeOrder, CATALOGUE_PRICE_MAP };
+module.exports = { handleMessage, placeOrder };
