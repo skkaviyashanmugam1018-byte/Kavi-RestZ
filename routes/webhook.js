@@ -54,9 +54,19 @@ router.post("/", async (req, res) => {
       } else if (msg.interactive?.type === "list_reply") {
         interactiveReply = msg.interactive.list_reply;
       } else if (msg.interactive?.type === "nfm_reply") {
-        // Flow completion — handled by /flow/endpoint
-        console.log("📋 Flow nfm_reply received — handled by /flow/endpoint");
-        return res.sendStatus(200);
+        // ✅ Flow complete — extract response_json
+        console.log("📋 Flow nfm_reply received!");
+        const responseJson = msg.interactive?.nfm_reply?.response_json;
+        console.log("📦 Raw response_json:", responseJson);
+        if (responseJson) {
+          try {
+            const flowData = JSON.parse(responseJson);
+            console.log("✅ Flow data parsed:", JSON.stringify(flowData, null, 2));
+            interactiveReply = { id: "__FLOW_COMPLETE__", flowData };
+          } catch (e) {
+            console.error("❌ Parse error:", e.message);
+          }
+        }
       }
     }
 

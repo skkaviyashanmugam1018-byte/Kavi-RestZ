@@ -850,6 +850,119 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
+    // ── FLOW COMPLETE — from nfm_reply in webhook ────────
+    if (input === "__FLOW_COMPLETE__") {
+      const flowData = interactiveReply?.flowData || {};
+      console.log("✅ Flow complete in botController:", JSON.stringify(flowData, null, 2));
+
+      const {
+        customer_name, customer_phone, alternate_phone,
+        door_no, street, landmark, area, city, district, pincode,
+        order_type, selected_addons, special_instructions, total_amount,
+      } = flowData;
+
+      const delivery_address = [
+        door_no, street,
+        landmark ? `Near ${landmark}` : null,
+        area, city,
+        district || null,
+        pincode ? `- ${pincode}` : null,
+      ].filter(Boolean).join(", ");
+
+      const DELIVERY_CHARGE = 30;
+      const GST_PERCENT     = 5;
+      const ADDON_PRICES_MAP = {
+        raita: { name: "Raita", price: 30 },
+        pickle: { name: "Pickle", price: 20 },
+        papad: { name: "Papad", price: 20 },
+        extra_gravy: { name: "Extra Gravy", price: 50 },
+        salad: { name: "Salad", price: 40 },
+        curd_rice: { name: "Curd Rice", price: 60 },
+        sweet: { name: "Sweet (Kheer)", price: 50 },
+      };
+
+      const baseTotal      = parseFloat(String(total_amount || "0").replace(/[^0-9.]/g, "")) || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const addonList      = Array.isArray(selected_addons) ? selected_addons : [];
+      const addonItems     = addonList.map((id) => ADDON_PRICES_MAP[id]).filter(Boolean);
+      const addonTotal     = addonItems.reduce((s, a) => s + a.price, 0);
+      const isDelivery     = order_type === "delivery";
+      const deliveryCharge = isDelivery ? DELIVERY_CHARGE : 0;
+      const subtotal       = baseTotal + addonTotal + deliveryCharge;
+      const gstAmount      = Math.round(subtotal * GST_PERCENT / 100);
+      const grandTotal     = subtotal + gstAmount;
+
+      const addonText = addonItems.length > 0
+        ? addonItems.map((a) => `${a.name} (Rs.${a.price})`).join(", ")
+        : "None";
+
+      const orderTypeLabel =
+        order_type === "delivery" ? "🚚 Home Delivery" :
+        order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
+
+      session.deliveryData = {
+        name:                 customer_name     || "Customer",
+        phone:                customer_phone    || from,
+        alternate_phone:      alternate_phone   || "",
+        address:              delivery_address,
+        order_type:           order_type        || "delivery",
+        delivery_time:        "asap",
+        scheduled_time:       "",
+        addons:               addonItems,
+        addon_total:          addonTotal,
+        delivery_charge:      deliveryCharge,
+        gst_amount:           gstAmount,
+        special_instructions: special_instructions || "",
+        grand_total:          grandTotal,
+      };
+      session.state = "PAYMENT_SELECT";
+      session.markModified("deliveryData");
+      await session.save();
+      console.log(`✅ Flow data saved | Grand Total: Rs.${grandTotal}`);
+
+      await sendButtons(
+        from,
+        `🧾 *Order Bill Summary*
+
+` +
+        `👤 *Customer:* ${customer_name}
+` +
+        `📞 *Phone:* ${customer_phone}
+` +
+        (alternate_phone ? `📞 *Alt:* ${alternate_phone}
+` : "") +
+        `📍 *Address:* ${delivery_address}
+` +
+        `🚚 *Type:* ${orderTypeLabel}
+` +
+        `🍱 *Add-ons:* ${addonText}
+` +
+        `📝 *Note:* ${special_instructions || "None"}
+` +
+        `─────────────────
+` +
+        `🛒 *Items:* Rs.${baseTotal}
+` +
+        (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal}
+` : "") +
+        `🚚 *Delivery:* ${isDelivery ? `Rs.${deliveryCharge}` : "Free"}
+` +
+        `📊 *GST (${GST_PERCENT}%):* Rs.${gstAmount}
+` +
+        `─────────────────
+` +
+        `💰 *Total: Rs.${grandTotal}*
+
+` +
+        `Select payment method:`,
+        [
+          { id: "PAY_COD",  title: "💵 Cash on Delivery" },
+          { id: "PAY_UPI",  title: "📲 UPI Payment"      },
+          { id: "PAY_CARD", title: "💳 Card Payment"      },
+        ]
+      );
+      return;
+    }
+
     // ── PAYMENT ───────────────────────────────────────────
     if (["PAY_COD", "PAY_UPI", "PAY_CARD"].includes(input)) {
       session.deliveryData.paymentMethod = input;
