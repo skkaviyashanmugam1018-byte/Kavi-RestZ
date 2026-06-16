@@ -3,9 +3,8 @@ const router  = express.Router();
 const crypto  = require("crypto");
 const fs      = require("fs");
 const path    = require("path");
-const Order   = require("../models/Order");
 const Session = require("../models/Session");
-const { sendButtons, sendText } = require("../config/whatsapp");
+const { sendButtons } = require("../config/whatsapp");
 
 // ── Load Private Key ──────────────────────────────────────
 const privateKey = process.env.PRIVATE_KEY
@@ -43,11 +42,8 @@ function encryptResponse(response, aesKey, iv) {
   return encrypted.toString("base64");
 }
 
-// ── Pricing Config ────────────────────────────────────────
-const DELIVERY_CHARGE = 30;
-const GST_PERCENT     = 5;
-
-// ── Addon price map ───────────────────────────────────────
+// ── Pricing ───────────────────────────────────────────────
+const GST_PERCENT = 5;
 const ADDON_PRICES = {
   raita:       { name: "Raita",         price: 30 },
   pickle:      { name: "Pickle",        price: 20 },
@@ -64,19 +60,15 @@ router.post("/endpoint", async (req, res) => {
     const body = req.body;
     console.log("📩 Flow endpoint hit | action:", body?.action || "encrypted");
 
-    // Unencrypted Ping
     if (body?.action === "ping") {
       console.log("✅ Health check ping");
       return res.status(200).json({ data: { status: "active" } });
     }
 
-    // Missing encrypted fields
     if (!body?.encrypted_aes_key || !body?.encrypted_flow_data || !body?.initial_vector) {
-      console.log("⚠️ No encrypted fields — returning active");
       return res.status(200).json({ data: { status: "active" } });
     }
 
-    // Decrypt
     let decryptedBody, aesKey, iv;
     try {
       ({ decryptedBody, aesKey, iv } = decryptRequest(body));
@@ -86,239 +78,254 @@ router.post("/endpoint", async (req, res) => {
     }
 
     const { flow_token, data, action, screen } = decryptedBody;
-    console.log("📩 Flow decrypted:", JSON.stringify({ action, screen, flow_token }, null, 2));
+    console.log("📩 Flow decrypted:", JSON.stringify({ action, screen }, null, 2));
 
-    // Encrypted Ping
     if (action === "ping") {
-      return res.status(200).send(
-        encryptResponse({ data: { status: "active" } }, aesKey, iv)
-      );
+      return res.status(200).send(encryptResponse({ data: { status: "active" } }, aesKey, iv));
     }
 
-    // Phone from flow_token — format: "delivery_917904307757_timestamp"
     const tokenParts = (flow_token || "").split("_");
     const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
-    console.log(`📞 Phone from flow_token: ${phone}`);
+    console.log(`📞 Phone: ${phone}`);
 
-    // ── ADDRESS_ONE → ADDRESS_TWO ────────────────────
-    if (screen === "ADDRESS_ONE") {
-      console.log("📋 ADDRESS_ONE → ADDRESS_TWO");
-      return res.status(200).send(
-        encryptResponse({
-          screen: "ADDRESS_TWO",
-          data: {
-            customer_name:   data.customer_name   || "",
-            customer_phone:  data.customer_phone  || "",
-            alternate_phone: data.alternate_phone || "",
-            door_no:         data.door_no         || "",
-            street:          data.street          || "",
-            landmark:        data.landmark        || "",
-            area:            data.area            || "",
-            cart_summary:    data.cart_summary    || "",
-            total_amount:    data.total_amount    || "",
-          }
-        }, aesKey, iv)
-      );
+    // ── ADDRESS → ORDER_TYPE ──────────────────────────────
+    if (screen === "ADDRESS") {
+      console.log("📋 ADDRESS → ORDER_TYPE");
+      return res.status(200).send(encryptResponse({
+        screen: "ORDER_TYPE",
+        data: {
+          customer_name:   data.customer_name   || "",
+          customer_phone:  data.customer_phone  || "",
+          alternate_phone: data.alternate_phone || "",
+          door_no:         data.door_no         || "",
+          street:          data.street          || "",
+          area:            data.area            || "",
+          pincode:         data.pincode         || "",
+          cart_summary:    data.cart_summary    || "",
+          total_amount:    data.total_amount    || "",
+        }
+      }, aesKey, iv));
     }
 
-    // ── ADDRESS_TWO → ORDER_TYPE ────────────────────────
-    if (screen === "ADDRESS_TWO") {
-      console.log("📋 ADDRESS_TWO → ORDER_TYPE");
-      return res.status(200).send(
-        encryptResponse({
-          screen: "ORDER_TYPE",
-          data: {
-            customer_name:  data.customer_name  || "",
-            customer_phone: data.customer_phone || "",
-            door_no:        data.door_no        || "",
-            street:         data.street         || "",
-            landmark:       data.landmark       || "",
-            area:           data.area           || "",
-            city:           data.city           || "",
-            district:       data.district       || "",
-            pincode:        data.pincode        || "",
-            cart_summary:   data.cart_summary   || "",
-            total_amount:   data.total_amount   || "",
-          }
-        }, aesKey, iv)
-      );
-    }
-
-    // ── ORDER_TYPE → ADDONS_SELECT ────────────────────────
+    // ── ORDER_TYPE → route based on selection ─────────────
     if (screen === "ORDER_TYPE") {
-      console.log("📋 ORDER_TYPE → ADDONS_SELECT");
-      return res.status(200).send(
-        encryptResponse({
-          screen: "ADDONS_SELECT",
-          data: {
-            customer_name:  data.customer_name  || "",
-            customer_phone: data.customer_phone || "",
-            door_no:        data.door_no        || "",
-            street:         data.street         || "",
-            landmark:       data.landmark       || "",
-            area:           data.area           || "",
-            city:           data.city           || "",
-            district:       data.district       || "",
-            pincode:        data.pincode        || "",
-            order_type:     data.order_type     || "delivery",
-            delivery_time:  "asap",
-            cart_summary:   data.cart_summary   || "",
-            total_amount:   data.total_amount   || "",
-          }
-        }, aesKey, iv)
-      );
+      const orderType = data.order_type || "delivery";
+      console.log(`📋 ORDER_TYPE → ${orderType}`);
+
+      const commonData = {
+        customer_name:   data.customer_name   || "",
+        customer_phone:  data.customer_phone  || "",
+        alternate_phone: data.alternate_phone || "",
+        door_no:         data.door_no         || "",
+        street:          data.street          || "",
+        area:            data.area            || "",
+        pincode:         data.pincode         || "",
+        order_type:      orderType,
+        cart_summary:    data.cart_summary    || "",
+        total_amount:    data.total_amount    || "",
+      };
+
+      // Dine In → Table Booking
+      if (orderType === "dine_in") {
+        return res.status(200).send(encryptResponse({
+          screen: "TABLE_BOOKING",
+          data: commonData
+        }, aesKey, iv));
+      }
+
+      // Delivery → Delivery Options (distance)
+      if (orderType === "delivery") {
+        return res.status(200).send(encryptResponse({
+          screen: "DELIVERY_OPTIONS",
+          data: commonData
+        }, aesKey, iv));
+      }
+
+      // Takeaway → straight to Addons
+      return res.status(200).send(encryptResponse({
+        screen: "ADDONS_SELECT",
+        data: {
+          ...commonData,
+          within_five_km: "",
+          table_persons:  "",
+          table_date:     "",
+          table_time:     "",
+          table_seating:  "",
+        }
+      }, aesKey, iv));
+    }
+
+    // ── DELIVERY_OPTIONS → ADDONS_SELECT ─────────────────
+    if (screen === "DELIVERY_OPTIONS") {
+      console.log("📋 DELIVERY_OPTIONS → ADDONS_SELECT");
+      return res.status(200).send(encryptResponse({
+        screen: "ADDONS_SELECT",
+        data: {
+          customer_name:   data.customer_name   || "",
+          customer_phone:  data.customer_phone  || "",
+          alternate_phone: data.alternate_phone || "",
+          door_no:         data.door_no         || "",
+          street:          data.street          || "",
+          area:            data.area            || "",
+          pincode:         data.pincode         || "",
+          order_type:      data.order_type      || "delivery",
+          within_five_km:  data.within_five_km  || "yes",
+          table_persons:   "",
+          table_date:      "",
+          table_time:      "",
+          table_seating:   "",
+          cart_summary:    data.cart_summary    || "",
+          total_amount:    data.total_amount    || "",
+        }
+      }, aesKey, iv));
+    }
+
+    // ── TABLE_BOOKING → ADDONS_SELECT ────────────────────
+    if (screen === "TABLE_BOOKING") {
+      console.log("📋 TABLE_BOOKING → ADDONS_SELECT");
+      return res.status(200).send(encryptResponse({
+        screen: "ADDONS_SELECT",
+        data: {
+          customer_name:   data.customer_name   || "",
+          customer_phone:  data.customer_phone  || "",
+          alternate_phone: data.alternate_phone || "",
+          door_no:         data.door_no         || "",
+          street:          data.street          || "",
+          area:            data.area            || "",
+          pincode:         data.pincode         || "",
+          order_type:      data.order_type      || "dine_in",
+          within_five_km:  "",
+          table_persons:   data.table_persons   || "",
+          table_date:      data.table_date      || "",
+          table_time:      data.table_time      || "",
+          table_seating:   data.table_seating   || "",
+          cart_summary:    data.cart_summary    || "",
+          total_amount:    data.total_amount    || "",
+        }
+      }, aesKey, iv));
     }
 
     // ── ADDONS_SELECT → ORDER_SUMMARY ─────────────────────
     if (screen === "ADDONS_SELECT") {
       console.log("📋 ADDONS_SELECT → ORDER_SUMMARY");
-      const baseTotal      = parseFloat(String(data.total_amount || "0").replace(/[^0-9.]/g, "")) || 0;
-      const addonList      = Array.isArray(data.selected_addons) ? data.selected_addons : [];
-      const addonItems     = addonList.map((id) => ADDON_PRICES[id]).filter(Boolean);
-      const addonTotal     = addonItems.reduce((s, a) => s + a.price, 0);
-      const isDelivery     = (data.order_type || "delivery") === "delivery";
-      const deliveryCharge = isDelivery ? DELIVERY_CHARGE : 0;
-      const subtotal       = baseTotal + addonTotal + deliveryCharge;
-      const gstAmount      = Math.round(subtotal * GST_PERCENT / 100);
-      const grandTotal     = subtotal + gstAmount;
-
-      return res.status(200).send(
-        encryptResponse({
-          screen: "ORDER_SUMMARY",
-          data: {
-            ...data,
-            selected_addons:      data.selected_addons      || [],
-            special_instructions: data.special_instructions || "",
-            addon_total:          `Rs.${addonTotal}`,
-            delivery_charge:      isDelivery ? `Rs.${deliveryCharge}` : "Free",
-            gst_amount:           `Rs.${gstAmount} (${GST_PERCENT}% GST)`,
-            grand_total:          `Rs.${grandTotal}`,
-          }
-        }, aesKey, iv)
-      );
+      return res.status(200).send(encryptResponse({
+        screen: "ORDER_SUMMARY",
+        data: {
+          ...data,
+          selected_addons:      data.selected_addons      || [],
+          special_instructions: data.special_instructions || "",
+        }
+      }, aesKey, iv));
     }
 
-    // ── COMPLETE → Save session + Send payment options ────
+    // ── COMPLETE ──────────────────────────────────────────
     if (action === "complete") {
       console.log("✅ Flow COMPLETE received!");
       console.log("📦 Flow data:", JSON.stringify(data, null, 2));
 
       const {
-        customer_name, customer_phone,
-        door_no, street, landmark, area, city, district, pincode,
-        order_type, alternate_phone,
-        selected_addons, special_instructions,
-        total_amount,
+        customer_name, customer_phone, alternate_phone,
+        door_no, street, area, pincode,
+        order_type, within_five_km,
+        table_persons, table_date, table_time, table_seating,
+        selected_addons, special_instructions, total_amount,
       } = data;
 
-      // Build full address
-      const delivery_address = [
-        door_no,
-        street,
-        landmark ? `Near ${landmark}` : null,
-        area,
-        city,
-        district || null,
-        pincode ? `- ${pincode}` : null,
-      ].filter(Boolean).join(", ");
-      const alt_phone = alternate_phone || "";
+      const delivery_address = [door_no, street, area, pincode ? `- ${pincode}` : null]
+        .filter(Boolean).join(", ");
 
       const sessionPhone = phone;
+      const cartTotal    = 0; // will be recalculated in botController from session.cart
+      const addonList    = Array.isArray(selected_addons) ? selected_addons : [];
+      const addonItems   = addonList.map((id) => ADDON_PRICES[id]).filter(Boolean);
+      const addonTotal   = addonItems.reduce((s, a) => s + a.price, 0);
+      const isDelivery   = order_type === "delivery";
+      const isWithin     = within_five_km === "yes";
+      const deliveryCh   = isDelivery ? (isWithin ? 100 : 150) : 0;
 
-      // Calculate pricing
-      const baseTotal      = parseFloat(String(total_amount || "0").replace(/[^0-9.]/g, "")) || 0;
-      const addonList      = Array.isArray(selected_addons) ? selected_addons : [];
-      const addonItems     = addonList.map((id) => ADDON_PRICES[id]).filter(Boolean);
-      const addonTotal     = addonItems.reduce((s, a) => s + a.price, 0);
-      const isDelivery     = order_type === "delivery";
-      const deliveryCharge = isDelivery ? DELIVERY_CHARGE : 0;
-      const subtotal       = baseTotal + addonTotal + deliveryCharge;
-      const gstAmount      = Math.round(subtotal * GST_PERCENT / 100);
-      const grandTotal     = subtotal + gstAmount;
-
-      console.log(`💰 base=${baseTotal} addons=${addonTotal} delivery=${deliveryCharge} gst=${gstAmount} grand=${grandTotal}`);
-
-      const addonText = addonItems.length > 0
-        ? addonItems.map((a) => `${a.name} (Rs.${a.price})`).join(", ")
-        : "None";
-
-      const timeText = "⚡ ASAP (30–45 mins)";
-
-      const orderTypeLabel =
-        order_type === "delivery" ? "🚚 Home Delivery" :
-        order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
-
-      // Update session
       let session = await Session.findOne({ phoneNumber: sessionPhone });
       if (session) {
+        const cartItemsTotal = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+        const subtotal       = cartItemsTotal + addonTotal + deliveryCh;
+        const gstAmount      = Math.round(subtotal * GST_PERCENT / 100);
+        const grandTotal     = subtotal + gstAmount;
+
+        const orderTypeLabel =
+          order_type === "delivery" ? "🚚 Home Delivery" :
+          order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
+
+        const deliveryLabel = isDelivery
+          ? `Rs.${deliveryCh} (${isWithin ? "Within 5km" : "Above 5km"})`
+          : "Free";
+
+        const addonText = addonItems.length > 0
+          ? addonItems.map((a) => `${a.name} (Rs.${a.price})`).join(", ")
+          : "None";
+
+        const tableInfo = order_type === "dine_in" && table_persons
+          ? `\n👥 *People:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Time:* ${table_time}\n🪑 *Seating:* ${table_seating === "ac" ? "❄️ AC" : "🌿 Non-AC"}`
+          : "";
+
         session.deliveryData = {
           name:                 customer_name     || "Customer",
           phone:                customer_phone    || sessionPhone,
-          alternate_phone:      alt_phone,
+          alternate_phone:      alternate_phone   || "",
           address:              delivery_address,
           order_type,
           delivery_time:        "asap",
           scheduled_time:       "",
+          table_persons:        table_persons     || "",
+          table_date:           table_date        || "",
+          table_time:           table_time        || "",
+          table_seating:        table_seating     || "",
           addons:               addonItems,
           addon_total:          addonTotal,
-          delivery_charge:      deliveryCharge,
+          delivery_charge:      deliveryCh,
           gst_amount:           gstAmount,
-          special_instructions,
+          special_instructions: special_instructions || "",
           grand_total:          grandTotal,
         };
         session.state = "PAYMENT_SELECT";
         session.markModified("deliveryData");
         await session.save();
-        console.log(`✅ Session updated for ${sessionPhone} | Grand Total: Rs.${grandTotal}`);
-      } else {
-        console.error(`❌ Session not found for phone: ${sessionPhone}`);
-      }
+        console.log(`✅ Session updated | Grand Total: Rs.${grandTotal}`);
 
-      // Send payment options
-      if (sessionPhone) {
-        try {
-          await sendButtons(
-            sessionPhone,
-            `🧾 *Order Bill Summary*\n\n` +
-            `👤 *Customer:* ${customer_name}\n` +
-            `📞 *Phone:* ${customer_phone}\n` +
-            `📍 *Address:* ${delivery_address}\n` +
-            `🚚 *Type:* ${orderTypeLabel}\n` +
-            `⏰ *Time:* ${timeText}\n` +
-            `🍱 *Add-ons:* ${addonText}\n` +
-            `📝 *Note:* ${special_instructions || "None"}\n` +
-            `─────────────────\n` +
-            `🛒 *Items:* Rs.${baseTotal}\n` +
-            (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal}\n` : "") +
-            `🚚 *Delivery:* ${isDelivery ? `Rs.${deliveryCharge}` : "Free"}\n` +
-            `📊 *GST (${GST_PERCENT}%):* Rs.${gstAmount}\n` +
-            `─────────────────\n` +
-            `💰 *Total: Rs.${grandTotal}*\n\n` +
-            `Select payment method:`,
-            [
-              { id: "PAY_COD",  title: "💵 Cash on Delivery" },
-              { id: "PAY_UPI",  title: "📲 UPI Payment"      },
-              { id: "PAY_CARD", title: "💳 Card Payment"      },
-            ]
-          );
-          console.log(`✅ Payment options sent to ${sessionPhone}`);
-        } catch (msgErr) {
-          console.error("❌ Payment send error:", msgErr.message);
-        }
+        await sendButtons(
+          sessionPhone,
+          `🧾 *Order Bill Summary*\n\n` +
+          `👤 *Customer:* ${customer_name}\n` +
+          `📞 *Phone:* ${customer_phone}\n` +
+          (alternate_phone ? `📞 *Alt:* ${alternate_phone}\n` : "") +
+          `📍 *Address:* ${delivery_address}\n` +
+          `🚚 *Type:* ${orderTypeLabel}` +
+          tableInfo + "\n" +
+          `📝 *Note:* ${special_instructions || "None"}\n` +
+          `─────────────────\n` +
+          `🛒 *Items:* Rs.${cartItemsTotal}\n` +
+          (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal} — ${addonText}\n` : "") +
+          `🚚 *Delivery:* ${deliveryLabel}\n` +
+          `📊 *GST (${GST_PERCENT}%):* Rs.${gstAmount}\n` +
+          `─────────────────\n` +
+          `💰 *Total: Rs.${grandTotal}*\n\n` +
+          `Select payment method:`,
+          [
+            { id: "PAY_COD",  title: "💵 Cash on Delivery" },
+            { id: "PAY_UPI",  title: "📲 UPI Payment"      },
+            { id: "PAY_CARD", title: "💳 Card Payment"      },
+          ]
+        );
+        console.log(`✅ Payment options sent to ${sessionPhone}`);
+      } else {
+        console.error(`❌ Session not found: ${sessionPhone}`);
       }
 
       return res.status(200).send(
-        encryptResponse(
-          { screen: "SUCCESS", data: { status: "payment_pending", total: grandTotal } },
-          aesKey, iv
-        )
+        encryptResponse({ screen: "SUCCESS", data: { status: "payment_pending" } }, aesKey, iv)
       );
     }
 
-    console.log("⚠️ Unhandled flow:", { action, screen });
-    return res.status(200).send(
-      encryptResponse({ data: { status: "active" } }, aesKey, iv)
-    );
+    console.log("⚠️ Unhandled:", { action, screen });
+    return res.status(200).send(encryptResponse({ data: { status: "active" } }, aesKey, iv));
 
   } catch (err) {
     console.error("❌ Flow error:", err.message);
