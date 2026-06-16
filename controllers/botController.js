@@ -702,7 +702,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── GREETING ──────────────────────────────────────────
-    if (["hi", "hello", "hey", "start", "menu"].includes(input)) {
+    if (["hi", "hello", "hey", "start", "menu", "/menu", "/start"].includes(input)) {
       session.state = "MAIN_MENU"; session.cart = []; session.deliveryData = {}; session.deliveryStep = null;
       session.markModified("cart"); session.markModified("deliveryData");
       await session.save();
@@ -804,7 +804,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── VIEW CART ─────────────────────────────────────────
-    if (input === "VIEW_CART") {
+    if (["VIEW_CART", "/cart"].includes(input)) {
       const cartMsg = buildCartMsg(session.cart);
       if (!session.cart || session.cart.length === 0) {
         await sendButtons(from, cartMsg, [
@@ -834,7 +834,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── PLACE ORDER → WhatsApp Flow ───────────────────────
-    if (["PLACE_ORDER", "PLACE_ORDER_FLOW"].includes(input)) {
+    if (["PLACE_ORDER", "PLACE_ORDER_FLOW", "/order"].includes(input)) {
       if (!session.cart || session.cart.length === 0) {
         await sendButtons(from, "❌ Your cart is empty!", [
           { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
@@ -995,6 +995,34 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("deliveryData");
       await session.save();
       await placeOrder(from, session);
+      return;
+    }
+
+    // ── COMMANDS ──────────────────────────────────────────
+    if (input === "/contact") {
+      await sendButtons(
+        from,
+        `📞 *Kavi Chettinadu Restaurant*
+
+` +
+        `📍 14/12A1, Kattupillaiyar Kovil Street
+Rameswaram - 623526
+
+` +
+        `📞 *95859 60612*
+📞 *95859 60613*
+
+` +
+        `⏰ Open: 12:00 PM – 10:30 PM
+
+` +
+        `🌐 kavirestaurant.in`,
+        [
+          { id: "BROWSE_MENU",    title: "📋 Browse Menu"    },
+          { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
+          { id: "exit",           title: "❌ Exit"            },
+        ]
+      );
       return;
     }
 
