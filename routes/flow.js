@@ -107,14 +107,15 @@ router.post("/endpoint", async (req, res) => {
         encryptResponse({
           screen: "ADDRESS_TWO",
           data: {
-            customer_name:  data.customer_name  || "",
-            customer_phone: data.customer_phone || "",
-            door_no:        data.door_no        || "",
-            street:         data.street         || "",
-            landmark:       data.landmark       || "",
-            area:           data.area           || "",
-            cart_summary:   data.cart_summary   || "",
-            total_amount:   data.total_amount   || "",
+            customer_name:   data.customer_name   || "",
+            customer_phone:  data.customer_phone  || "",
+            alternate_phone: data.alternate_phone || "",
+            door_no:         data.door_no         || "",
+            street:          data.street          || "",
+            landmark:        data.landmark        || "",
+            area:            data.area            || "",
+            cart_summary:    data.cart_summary    || "",
+            total_amount:    data.total_amount    || "",
           }
         }, aesKey, iv)
       );
@@ -205,7 +206,7 @@ router.post("/endpoint", async (req, res) => {
       const {
         customer_name, customer_phone,
         door_no, street, landmark, area, city, district, pincode,
-        order_type,
+        order_type, alternate_phone,
         selected_addons, special_instructions,
         total_amount,
       } = data;
@@ -220,6 +221,7 @@ router.post("/endpoint", async (req, res) => {
         district || null,
         pincode ? `- ${pincode}` : null,
       ].filter(Boolean).join(", ");
+      const alt_phone = alternate_phone || "";
 
       const sessionPhone = phone;
 
@@ -252,6 +254,7 @@ router.post("/endpoint", async (req, res) => {
         session.deliveryData = {
           name:                 customer_name     || "Customer",
           phone:                customer_phone    || sessionPhone,
+          alternate_phone:      alt_phone,
           address:              delivery_address,
           order_type,
           delivery_time:        "asap",
