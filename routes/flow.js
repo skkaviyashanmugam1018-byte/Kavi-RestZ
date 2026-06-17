@@ -121,6 +121,22 @@ router.post("/endpoint", async (req, res) => {
       return res.status(200).send(encryptResponse({ data: { status: "active" } }, aesKey, iv));
     }
 
+    // ── INITIAL NAVIGATE (flow first load) ───────────────
+    if (action === "navigate" && (!screen || screen === "")) {
+      console.log("📋 Initial navigate → ORDER_TYPE");
+      return res.status(200).send(encryptResponse({
+        screen: "ORDER_TYPE",
+        data: {
+          cart_summary:   data?.cart_summary   || "",
+          total_amount:   data?.total_amount   || "",
+          customer_name:  "",
+          customer_phone: "",
+          error_messages: {},
+          init_values:    {},
+        }
+      }, aesKey, iv));
+    }
+
     const tokenParts = (flow_token || "").split("_");
     const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
     console.log(`📞 Phone: ${phone}`);
