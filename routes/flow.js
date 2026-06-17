@@ -105,7 +105,7 @@ router.post("/endpoint", async (req, res) => {
       }, aesKey, iv));
     }
 
-    // ── ORDER_TYPE → route based on selection ─────────────
+    // ── ORDER_TYPE → data_exchange route based on selection ─
     if (screen === "ORDER_TYPE") {
       const orderType = data.order_type || "delivery";
       console.log(`📋 ORDER_TYPE → ${orderType}`);
