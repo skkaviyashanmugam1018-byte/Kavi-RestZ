@@ -657,6 +657,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (input === "VIEW_CATALOGUE") {
       session.state = "CATALOGUE";
       await session.save();
+      await sendImage(from, "https://kavirestaurant.in/wp-content/uploads/2026/05/logo-01-scaled.jpg", "🍛 Kavi Chettinadu — Browse our menu!");
       const sent = await sendCatalogueMessage(from);
       if (!sent) {
         await sendText(from, "🖼️ Showing menu instead!");
@@ -963,12 +964,28 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
       if (input === "PAY_QR" || input === "PAY_UPI") {
         const total = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-        // Send QR code image if available
-        const qrUrl = process.env.RESTAURANT_QR_URL;
-        if (qrUrl) {
-          await sendImage(from, qrUrl, `📲 Scan to Pay\n💰 Amount: Rs.${total}\nAfter payment click confirm below.`);
-        }
-        // Also send Razorpay link
+        session.state = "AWAITING_UPI_ID";
+        session.markModified("deliveryData");
+        await session.save();
+        await sendText(from,
+          `📲 *UPI Payment*\n\n` +
+          `💰 Amount: *Rs.${total}*\n\n` +
+          `Please type your *UPI ID* below:\n` +
+          `(e.g. name@gpay, name@paytm, 9876543210@ybl)\n\n` +
+          `After entering UPI ID, you will be redirected to payment page.`
+        );
+        return;
+      }
+
+      // ── UPI ID entered by user ────────────────────────────
+      if (session.state === "AWAITING_UPI_ID" && rawInput && !rawInput.startsWith("/")) {
+        const upiId = rawInput.trim();
+        const total = session.deliveryData?.grand_total || 0;
+        session.deliveryData.paymentMethod = "PAY_UPI";
+        session.deliveryData.upi_id = upiId;
+        session.state = "PAYMENT_SELECT";
+        session.markModified("deliveryData");
+        await session.save();
         try {
           const Razorpay = require("razorpay");
           const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
@@ -980,13 +997,25 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
             expire_by: Math.floor(Date.now() / 1000) + 300,
             reminder_enable: false,
           });
-          await sendText(from, `🔗 *Or pay via link:* ${payLink.short_url}\n\n⏰ Link expires in 5 mins!`);
+          await sendText(from,
+            `✅ *UPI ID received:* ${upiId}\n\n` +
+            `💰 Amount: *Rs.${total}*\n\n` +
+            `🔗 *Click to Pay:* ${payLink.short_url}\n\n` +
+            `This will open PhonePe / GPay / Paytm payment page.\n` +
+            `⏰ Link valid for 5 minutes.`
+          );
         } catch (rzpErr) {
-          const upiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
-          await sendText(from, `💳 *UPI ID:* ${upiId}\n💰 *Amount:* Rs.${total}`);
+          console.error("❌ Razorpay error:", rzpErr.message);
+          const restUpiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
+          await sendText(from,
+            `📲 *UPI Payment*\n\n` +
+            `Pay to: *${restUpiId}*\n` +
+            `💰 Amount: *Rs.${total}*\n\n` +
+            `After payment, confirm below.`
+          );
         }
         await sendButtons(from, "✅ Have you completed the payment?", [
-          { id: "UPI_DONE", title: "✅ Pay Now — Done"  },
+          { id: "UPI_DONE", title: "✅ Payment Done"    },
           { id: "PAY_COD",  title: "💵 Pay COD instead" },
         ]);
         return;
@@ -996,12 +1025,34 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         session.deliveryData.paymentMethod = "PAY_CARD";
         session.markModified("deliveryData");
         await session.save();
-        await sendText(from,
-          `💳 *Card Payment Details*\n\n` +
-          `💰 Amount: *Rs.${total}*\n\n` +
-          `Card payment will be collected at delivery/counter.`
-        );
-        await placeOrder(from, session);
+        try {
+          const Razorpay = require("razorpay");
+          const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
+          const payLink = await rzp.paymentLink.create({
+            amount: total * 100, currency: "INR",
+            description: `Kavi Chettinadu - ${session.deliveryData?.name || "Customer"}`,
+            customer: { name: session.deliveryData?.name || "Customer", contact: session.deliveryData?.phone || from },
+            notify: { sms: false, email: false },
+            expire_by: Math.floor(Date.now() / 1000) + 600,
+            reminder_enable: false,
+          });
+          await sendText(from,
+            `💳 *Card Payment*\n\n` +
+            `💰 Amount: *Rs.${total}*\n\n` +
+            `🔗 *Click to Pay:* ${payLink.short_url}\n\n` +
+            `This will open PhonePe / GPay / Card payment page.\n` +
+            `Complete OTP verification and pay.\n` +
+            `⏰ Link valid for 10 minutes.`
+          );
+          await sendButtons(from, "✅ Have you completed the payment?", [
+            { id: "UPI_DONE", title: "✅ Payment Done"    },
+            { id: "PAY_COD",  title: "💵 Pay COD instead" },
+          ]);
+        } catch (rzpErr) {
+          console.error("❌ Razorpay card error:", rzpErr.message);
+          await sendText(from, "💳 *Card payment will be collected at delivery/counter.*");
+          await placeOrder(from, session);
+        }
         return;
       }
       await placeOrder(from, session);

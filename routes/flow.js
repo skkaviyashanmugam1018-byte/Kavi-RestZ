@@ -214,6 +214,7 @@ router.post("/endpoint", async (req, res) => {
           ...data,
           selected_addons:      data.selected_addons      || [],
           special_instructions: data.special_instructions || "",
+          pickup_time:          data.pickup_time          || "",
         }
       }, aesKey, iv));
     }
@@ -228,6 +229,7 @@ router.post("/endpoint", async (req, res) => {
         order_type, delivery_address, pincode, within_five_km,
         selected_addons, special_instructions,
         table_persons, table_date, table_time, table_seating,
+        pickup_time,
         total_amount,
       } = data;
 
@@ -267,6 +269,8 @@ router.post("/endpoint", async (req, res) => {
 
       const tableInfo = order_type === "dine_in"
         ? `\n👥 *People:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Time:* ${table_time}\n🪑 *Seating:* ${table_seating === "ac" ? "❄️ AC" : "🌿 Non-AC"}`
+        : order_type === "takeaway" && pickup_time
+        ? `\n🕐 *Pickup Time:* ${pickup_time}`
         : "";
 
       session.deliveryData = {
@@ -280,6 +284,7 @@ router.post("/endpoint", async (req, res) => {
         table_date:           table_date        || "",
         table_time:           table_time        || "",
         table_seating:        table_seating     || "",
+        pickup_time:          pickup_time       || "",
         addons:               addonItems,
         addon_total:          addonTotal,
         delivery_charge:      deliveryCh,
