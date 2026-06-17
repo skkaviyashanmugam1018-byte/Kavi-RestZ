@@ -469,8 +469,9 @@ async function sendCategoryItems(to, catKey, page = 0) {
 }
 
 async function sendQuantitySelect(to, item) {
+  await sendText(to, `*${item.name}*\n💰 Price: Rs.${item.price}\n\n📝 *Enter quantity:*\nType any number (1, 2, 3, 4, 5...) and send!`);
   await sendButtons(to,
-    `*${item.name}*\n💰 Price: Rs.${item.price}\n\nSelect quantity:`,
+    "Or tap a quick option:",
     [
       { id: `QTY_1___${item.id}`, title: "1️⃣  Qty: 1" },
       { id: `QTY_2___${item.id}`, title: "2️⃣  Qty: 2" },
@@ -961,13 +962,43 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
       if (input === "PAY_UPI") {
         const total = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-        const upiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
-        await sendText(from,
-          `📲 *UPI Payment*\n\n` +
-          `💳 UPI ID: *${upiId}*\n` +
-          `💰 Amount: *Rs.${total}*\n\n` +
-          `Pay now and click confirm below.`
-        );
+        try {
+          const Razorpay = require("razorpay");
+          const razorpay = new Razorpay({
+            key_id:     process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
+          });
+          const paymentLink = await razorpay.paymentLink.create({
+            amount:      total * 100, // paise
+            currency:    "INR",
+            description: `Kavi Chettinadu Order - ${session.deliveryData?.name || "Customer"}`,
+            customer: {
+              name:    session.deliveryData?.name  || "Customer",
+              contact: session.deliveryData?.phone || from,
+            },
+            notify:    { sms: false, email: false },
+            expire_by: Math.floor(Date.now() / 1000) + 300, // 5 minutes
+            reminder_enable: false,
+          });
+          console.log("✅ Razorpay payment link created:", paymentLink.short_url);
+          await sendText(from,
+            `📲 *UPI Payment*\n\n` +
+            `💰 Amount: *Rs.${total}*\n\n` +
+            `🔗 *Pay here:* ${paymentLink.short_url}\n\n` +
+            `⏰ Link expires in 5 minutes!\n\n` +
+            `After payment, click confirm below.`
+          );
+        } catch (rzpErr) {
+          console.error("❌ Razorpay error:", rzpErr.message);
+          const upiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
+          const total2 = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+          await sendText(from,
+            `📲 *UPI Payment*\n\n` +
+            `💳 UPI ID: *${upiId}*\n` +
+            `💰 Amount: *Rs.${total2}*\n\n` +
+            `Pay now and click confirm below.`
+          );
+        }
         await sendButtons(from, "✅ Have you completed the payment?", [
           { id: "UPI_DONE", title: "✅ Pay Now — Done"   },
           { id: "PAY_COD",  title: "💵 Pay COD instead"  },
@@ -975,8 +1006,33 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         return;
       }
       if (input === "PAY_CARD") {
-        await sendText(from, "💳 *Card payment will be collected at delivery/counter.*");
+        const total = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+        session.state = "AWAITING_CARD";
+        session.markModified("deliveryData");
+        await session.save();
+        await sendText(from,
+          `💳 *Card Payment Details*\n\n` +
+          `💰 Amount: *Rs.${total}*\n\n` +
+          `Please provide your card details:\n` +
+          `Type: *Card Number* (last 4 digits only for verification)\n\n` +
+          `Or card payment will be collected at delivery/counter.`
+        );
+        await sendButtons(from, "How would you like to proceed?", [
+          { id: "CARD_COD",  title: "💳 Pay at Delivery" },
+          { id: "PAY_COD",   title: "💵 Switch to COD"   },
+        ]);
+        return;
       }
+      await placeOrder(from, session);
+      return;
+    }
+
+    // ── CARD AT DELIVERY ─────────────────────────────────
+    if (input === "CARD_COD") {
+      session.deliveryData.paymentMethod = "PAY_CARD";
+      session.state = "PAYMENT_SELECT";
+      session.markModified("deliveryData");
+      await session.save();
       await placeOrder(from, session);
       return;
     }

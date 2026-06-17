@@ -12,8 +12,7 @@ const HEADERS = () => ({
 // ─── Send plain text ──────────────────────────────────────
 async function sendText(to, text) {
   try {
-    await axios.post(
-      getBaseUrl(),
+    await axios.post(getBaseUrl(),
       { messaging_product: "whatsapp", to, type: "text", text: { body: text } },
       { headers: HEADERS() }
     );
@@ -25,15 +24,11 @@ async function sendText(to, text) {
 // ─── Send reply buttons (max 3) ───────────────────────────
 async function sendButtons(to, bodyText, buttons) {
   try {
-    await axios.post(
-      getBaseUrl(),
+    await axios.post(getBaseUrl(),
       {
-        messaging_product: "whatsapp",
-        to,
-        type: "interactive",
+        messaging_product: "whatsapp", to, type: "interactive",
         interactive: {
-          type: "button",
-          body: { text: bodyText },
+          type: "button", body: { text: bodyText },
           action: {
             buttons: buttons.slice(0, 3).map((b) => ({
               type: "reply",
@@ -52,12 +47,9 @@ async function sendButtons(to, bodyText, buttons) {
 // ─── Send list message ────────────────────────────────────
 async function sendList(to, headerText, bodyText, buttonText, sections) {
   try {
-    await axios.post(
-      getBaseUrl(),
+    await axios.post(getBaseUrl(),
       {
-        messaging_product: "whatsapp",
-        to,
-        type: "interactive",
+        messaging_product: "whatsapp", to, type: "interactive",
         interactive: {
           type: "list",
           header: { type: "text", text: headerText },
@@ -75,14 +67,10 @@ async function sendList(to, headerText, bodyText, buttonText, sections) {
 // ─── Send Image ───────────────────────────────────────────
 async function sendImage(to, imageUrl, caption = "") {
   try {
-    await axios.post(
-      getBaseUrl(),
+    await axios.post(getBaseUrl(),
       {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "image",
-        image: { link: imageUrl, caption },
+        messaging_product: "whatsapp", recipient_type: "individual",
+        to, type: "image", image: { link: imageUrl, caption },
       },
       { headers: HEADERS() }
     );
@@ -95,30 +83,18 @@ async function sendImage(to, imageUrl, caption = "") {
 async function sendCatalogueMessage(to) {
   try {
     const catalogueId = process.env.CATALOGUE_ID;
-    if (!catalogueId) {
-      console.warn("⚠️ CATALOGUE_ID not set in .env");
-      return false;
-    }
-    await axios.post(
-      getBaseUrl(),
+    if (!catalogueId) { console.warn("⚠️ CATALOGUE_ID not set"); return false; }
+    await axios.post(getBaseUrl(),
       {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "interactive",
+        messaging_product: "whatsapp", recipient_type: "individual",
+        to, type: "interactive",
         interactive: {
           type: "catalog_message",
-          body: {
-            text: "🍽️ Browse our full Kavi Chettinadu menu!\n\nTap any item to add to cart and place your order. 🛒",
-          },
-          footer: {
-            text: "📍 Rameswaram | 📞 95859 60612",
-          },
+          body: { text: "🍽️ Browse our full Kavi Chettinadu menu!\n\nTap any item to add to cart. 🛒" },
+          footer: { text: "📍 Rameswaram | 📞 95859 60612" },
           action: {
             name: "catalog_message",
-            parameters: {
-              thumbnail_product_retailer_id: "GRILL001",
-            },
+            parameters: { thumbnail_product_retailer_id: "GRILL001" },
           },
         },
       },
@@ -132,23 +108,18 @@ async function sendCatalogueMessage(to) {
   }
 }
 
-// ─── Send WhatsApp Flow (Delivery Details) ────────────────
+// ─── Send WhatsApp Flow ───────────────────────────────────
 async function sendDeliveryFlow(to, cartSummary, totalAmount) {
   try {
     const flowToken = `delivery_${to}_${Date.now()}`;
-    await axios.post(
-      getBaseUrl(),
+    await axios.post(getBaseUrl(),
       {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "interactive",
+        messaging_product: "whatsapp", recipient_type: "individual",
+        to, type: "interactive",
         interactive: {
           type: "flow",
           header: { type: "text", text: "📦 Order Details" },
-          body: {
-            text: `Your cart total: *Rs.${totalAmount}*\n\nFill your delivery details below:`,
-          },
+          body: { text: `Your cart total: *Rs.${totalAmount}*\n\nFill your delivery details below:` },
           footer: { text: "Kavi Chettinadu Restaurant" },
           action: {
             name: "flow",
@@ -160,10 +131,7 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount) {
               flow_action: "navigate",
               flow_action_payload: {
                 screen: "ADDRESS",
-                data: {
-                  cart_summary: cartSummary,
-                  total_amount: `Rs.${totalAmount}`,
-                },
+                data: { cart_summary: cartSummary, total_amount: `Rs.${totalAmount}` },
               },
             },
           },
@@ -177,44 +145,7 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount) {
   }
 }
 
-// ─── Send Order Confirmation ──────────────────────────────
-async function sendOrderConfirmation(to, order) {
-  try {
-    const itemsList = order.items
-      .map((i) => `• ${i.name} × ${i.quantity} = Rs.${i.price * i.quantity}`)
-      .join("\n");
-
-    const paymentLabel =
-      order.paymentMethod === "UPI Payment"  ? "📲 UPI Payment"      :
-      order.paymentMethod === "Card Payment" ? "💳 Card Payment"     : "💵 Cash on Delivery";
-
-    await sendText(
-      to,
-      `🎉 *ORDER PLACED SUCCESSFULLY!*\n\n` +
-      `📋 *Order ID:* #${order.orderId}\n` +
-      `─────────────────\n` +
-      `*Items:*\n${itemsList}\n` +
-      `─────────────────\n` +
-      `💰 *Total: Rs.${order.totalAmount}*\n` +
-      `💳 *Payment:* ${paymentLabel}\n` +
-      `🚚 *Type:* ${order.orderType || "Home Delivery"}\n` +
-      `🏠 *Address:* ${order.address}\n` +
-      `─────────────────\n` +
-      `⏱️ Est. Delivery: 30-45 mins\n\n` +
-      `Thank you for ordering from Kavi Chettinadu! 🙏\n` +
-      `📞 95859 60612`
-    );
-  } catch (err) {
-    console.error("❌ sendOrderConfirmation error:", err.message);
-  }
-}
-
 module.exports = {
-  sendText,
-  sendButtons,
-  sendList,
-  sendImage,
-  sendCatalogueMessage,
-  sendDeliveryFlow,
-  sendOrderConfirmation,
+  sendText, sendButtons, sendList, sendImage,
+  sendCatalogueMessage, sendDeliveryFlow,
 };
