@@ -137,18 +137,16 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
 
-      // Takeaway → skip addons, go to ORDER_SUMMARY
+      // Takeaway → ADDONS_SELECT (free delivery, no km selection)
       return res.status(200).send(encryptResponse({
-        screen: "ORDER_SUMMARY",
+        screen: "ADDONS_SELECT",
         data: {
           ...commonData,
-          within_five_km:       "",
-          table_persons:        "",
-          table_date:           "",
-          table_time:           "",
-          table_seating:        "",
-          selected_addons:      [],
-          special_instructions: "",
+          within_five_km: "",
+          table_persons:  "",
+          table_date:     "",
+          table_time:     "",
+          table_seating:  "",
         }
       }, aesKey, iv));
     }

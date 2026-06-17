@@ -764,7 +764,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     }
 
     // ── MANUAL QUANTITY (type a number while in QUANTITY_SELECT) ─
-    if (session.state === "QUANTITY_SELECT" && session.pendingItem && /^\d+$/.test(rawInput)) {
+    if (session.state === "QUANTITY_SELECT" && session.pendingItem && rawInput && /^\d+$/.test(rawInput)) {
       const qty  = parseInt(rawInput);
       const item = session.pendingItem;
       if (qty < 1 || qty > 20) {
