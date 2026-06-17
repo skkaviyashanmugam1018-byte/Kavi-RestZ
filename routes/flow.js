@@ -171,8 +171,41 @@ router.post("/endpoint", async (req, res) => {
       }, aesKey, iv));
     }
 
-    // ── DELIVERY_ADDRESS → DELIVERY_KMS ──────────────────────
+    // ── DELIVERY_ADDRESS → route based on order_type ────────
     if (screen === "DELIVERY_ADDRESS") {
+      const orderType = data.order_type || "delivery";
+      // If takeaway - go to TAKEAWAY_ADDONS
+      if (orderType === "takeaway") {
+        console.log("📋 DELIVERY_ADDRESS → TAKEAWAY_ADDONS (takeaway)");
+        return res.status(200).send(encryptResponse({
+          screen: "TAKEAWAY_ADDONS",
+          data: {
+            customer_name:  data.customer_name  || "",
+            customer_phone: data.customer_phone || "",
+            alternate_phone: data.alternate_phone || "",
+            order_type:     orderType,
+            cart_summary:   data.cart_summary   || "",
+            total_amount:   data.total_amount   || "",
+          }
+        }, aesKey, iv));
+      }
+      // If dine_in - go to DINE_BOOKING
+      if (orderType === "dine_in") {
+        console.log("📋 DELIVERY_ADDRESS → DINE_BOOKING (dine_in)");
+        return res.status(200).send(encryptResponse({
+          screen: "DINE_BOOKING",
+          data: {
+            customer_name:  data.customer_name  || "",
+            customer_phone: data.customer_phone || "",
+            alternate_phone: data.alternate_phone || "",
+            order_type:     orderType,
+            cart_summary:   data.cart_summary   || "",
+            total_amount:   data.total_amount   || "",
+          }
+        }, aesKey, iv));
+      }
+      // delivery - continue to DELIVERY_KMS
+      console.log("📋 DELIVERY_ADDRESS → DELIVERY_KMS");
       console.log("📋 DELIVERY_ADDRESS → DELIVERY_KMS");
       return res.status(200).send(encryptResponse({
         screen: "DELIVERY_KMS",
