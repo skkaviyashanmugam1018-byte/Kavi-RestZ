@@ -8,7 +8,9 @@ const { sendButtons, sendText, sendImage } = require("../config/whatsapp");
 
 let privateKey;
 if (process.env.PRIVATE_KEY) {
-  privateKey = process.env.PRIVATE_KEY.replace(/\\n/g, "\n");
+  privateKey = process.env.PRIVATE_KEY
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "");
   console.log("🔑 Using PRIVATE_KEY from env, length:", privateKey.length);
 } else {
   privateKey = fs.readFileSync(path.join(__dirname, "../private.pem"), "utf8");
