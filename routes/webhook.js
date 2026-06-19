@@ -7,30 +7,37 @@ router.get("/", (req, res) => {
   const mode      = req.query["hub.mode"];
   const token     = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
+
   if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
     console.log("✅ Webhook verified by Meta");
     return res.status(200).send(challenge);
   }
+  console.log("❌ Webhook verification failed");
   return res.sendStatus(403);
 });
 
-// ── POST /webhook — Incoming WhatsApp Messages ─────────────
+// ── POST /webhook — Incoming WhatsApp Messages ────────────
 router.post("/", async (req, res) => {
   try {
     const body = req.body;
-    if (body.object !== "whatsapp_business_account") return res.sendStatus(404);
 
-    const entry   = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value   = changes?.value;
+    if (body.object !== "whatsapp_business_account") {
+      return res.sendStatus(404);
+    }
+
+    const entry    = body.entry?.[0];
+    const changes  = entry?.changes?.[0];
+    const value    = changes?.value;
     const messages = value?.messages;
 
-    if (!messages || messages.length === 0) return res.sendStatus(200);
+    if (!messages || messages.length === 0) {
+      return res.sendStatus(200);
+    }
 
     const msg  = messages[0];
     const from = msg.from;
 
-    // ✅ Extract WhatsApp profile name from contacts
+    // ✅ Extract WhatsApp profile name
     const contactName = value?.contacts?.[0]?.profile?.name || "";
     if (contactName) console.log(`👤 WhatsApp Name: ${contactName}`);
 
@@ -39,14 +46,19 @@ router.post("/", async (req, res) => {
     let locationData     = null;
     let catalogueOrder   = null;
 
+    // ── Text ──────────────────────────────────────────────
     if (msg.type === "text") {
       messageBody = msg.text?.body || "";
-    } else if (msg.type === "interactive") {
+    }
+
+    // ── Interactive ───────────────────────────────────────
+    else if (msg.type === "interactive") {
       if (msg.interactive?.type === "button_reply") {
         interactiveReply = msg.interactive.button_reply;
       } else if (msg.interactive?.type === "list_reply") {
         interactiveReply = msg.interactive.list_reply;
       } else if (msg.interactive?.type === "nfm_reply") {
+        // ✅ Flow complete — extract response_json
         console.log("📋 Flow nfm_reply received!");
         const responseJson = msg.interactive?.nfm_reply?.response_json;
         console.log("📦 Raw response_json:", responseJson);
@@ -60,10 +72,16 @@ router.post("/", async (req, res) => {
           }
         }
       }
-    } else if (msg.type === "order") {
+    }
+
+    // ── Catalogue Order ───────────────────────────────────
+    else if (msg.type === "order") {
       catalogueOrder = msg.order;
       console.log("🛒 Catalogue order received:", JSON.stringify(catalogueOrder, null, 2));
-    } else if (msg.type === "location") {
+    }
+
+    // ── Location ──────────────────────────────────────────
+    else if (msg.type === "location") {
       const loc = msg.location;
       locationData = {
         lat:     loc.latitude,
@@ -78,12 +96,17 @@ router.post("/", async (req, res) => {
     console.log("💬 Message:", messageBody);
     console.log("⚡ Interactive:", interactiveReply);
 
-    // ✅ Pass contactName to handleMessage
     await handleMessage(from, messageBody, interactiveReply, locationData, catalogueOrder, contactName);
 
     return res.sendStatus(200);
+
   } catch (err) {
-    console.error("\n❌ Webhook Error:", err.message);
+    console.error("\n❌ Webhook Processing Error");
+    if (err.response?.data) {
+      console.error(JSON.stringify(err.response.data, null, 2));
+    } else {
+      console.error(err.message);
+    }
     return res.sendStatus(200);
   }
 });
