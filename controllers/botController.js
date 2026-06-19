@@ -347,8 +347,8 @@ async function sendWelcome(to, name="") {
     `🍛 *Welcome to Kavi Chettinadu Restaurant!*\n✨ _Taste The Tradition_\n\n👋 ${greet} We are glad you are here! 🙏`
   );
   await sendButtons(to,
-    "What would you like to do next? 🍽️",
-    [{id:"EXPLORE_MENUS", title:"🍽️ Explore Menus"}]
+    "What would you like to do next?",
+    [{id:"GET_STARTED", title:"🍴 Get Started"}]
   );
 }
 
@@ -476,8 +476,20 @@ async function placeOrder(from, session) {
     paymentMethod==="PAY_UPI"  ? "UPI"  :
     paymentMethod==="PAY_REST" ? "Pay at Restaurant" : "Card";
 
+  const celebAddons = session.deliveryData?.celebration_addons || [];
+  const celebText = celebAddons.length > 0
+    ? celebAddons.map(id => ({
+        birthday_decoration:"🎂 Birthday Decoration", anniversary:"💑 Anniversary",
+        cake_arrangement:"🎂 Cake", flower_bouquet:"💐 Flowers",
+        candle_dinner:"🕯️ Candle Dinner", welcome_board:"🪧 Welcome Board",
+        photography:"📸 Photography",
+      }[id]||id)).join(", ")
+    : "";
+  const occasionName = session.deliveryData?.occasion_name || "";
   const tableInfo = order_type==="dine_in" && table_persons
-    ? `\n👥 Guests: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${table_seating==="ac"?"AC":"Non-AC"}`
+    ? `\n👥 Guests: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${table_seating==="ac"?"AC":"Non-AC"}` +
+      (occasionName ? `\n🎉 Occasion: ${occasionName}` : "") +
+      (celebText ? `\n🎊 Arrangements: ${celebText}` : "")
     : order_type==="takeaway" ? `\n🕐 Pickup: ${pickup_time||"ASAP"}` : "";
 
   const allItems = [
@@ -587,15 +599,17 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           live_location: address,
           live_location_coords: {lat:locationData.lat, lng:locationData.lng},
         };
-        session.state = "AWAITING_FLOW";
+        session.state = "CATALOGUE";  // go to menu first
         session.markModified("deliveryData");
         await session.save();
-        const cartSummary = buildCartSummary(session.cart);
-        const total = session.cart.reduce((s,i) => s+i.price*i.qty, 0);
         await sendText(from,
-          `✅ *Location received!*\n📍 ${address}\n\n🚚 *Distance:* ~${dist.km}km from restaurant\n💰 *Delivery charge:* Rs.${dist.charge}\n\nNow fill your order details:`
+          `✅ *Location received!*\n📍 ${address}\n\n🚚 *Distance:* ~${dist.km}km from restaurant\n💰 *Delivery charge:* Rs.${dist.charge}\n\nNow add items to your cart:`
         );
-        await sendDeliveryFlow(from, cartSummary, total);
+        await sendButtons(from, "Browse our menu:", [
+          {id:"VIEW_CATALOGUE", title:"🖼️ View Catalogue"},
+          {id:"BROWSE_MENU",    title:"📋 Browse Menu"},
+          {id:"search",         title:"🔍 Search Dish"},
+        ]);
       } else {
         await sendText(from, `📍 *Location received!*\n${mapsUrl}\n\nSend *hi* to start ordering.`);
       }
@@ -621,23 +635,49 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
-    // ── EXPLORE MENUS ─────────────────────────────────────
-    if (input==="EXPLORE_MENUS") {
+    // ── GET STARTED → order type + browse options ─────────
+    if (input==="GET_STARTED" || input==="EXPLORE_MENUS") {
       session.state = "MAIN_MENU";
       await session.save();
       await sendList(from,
         "🍛 Kavi Chettinadu",
-        "Choose an option to get started:",
-        "Select",
+        "What would you like to do?",
+        "Choose",
         [{
-          title: "Our Menu",
+          title: "Order Options",
           rows: [
-            {id:"VIEW_CATALOGUE", title:"🖼️ View Catalogue",  description:"Browse menu with images & prices"},
-            {id:"search",         title:"🔍 Search Menu",      description:"Search by dish name"},
-            {id:"contact",        title:"📞 Contact Us",       description:"Restaurant info & timings"},
+            {id:"ORDER_DINEIN",   title:"🍽️ Dine In",          description:"Book a table at restaurant"},
+            {id:"ORDER_DELIVERY", title:"🚚 Home Delivery",     description:"Delivered to your doorstep"},
+            {id:"ORDER_TAKEAWAY", title:"🥡 Take Away",         description:"Pickup at restaurant"},
+            {id:"BROWSE_MENU",    title:"📋 Browse Menu",       description:"View categories & search"},
             {id:"exit",           title:"❌ Exit",              description:"End conversation"},
           ]
         }]
+      );
+      return;
+    }
+
+    // ── DIRECT ORDER TYPE SELECTION ───────────────────────
+    // User selects order type from main menu → go to catalogue then flow
+    if (input==="ORDER_DINEIN" || input==="ORDER_DELIVERY" || input==="ORDER_TAKEAWAY") {
+      const orderMap = {
+        ORDER_DINEIN:   "dine_in",
+        ORDER_DELIVERY: "delivery",
+        ORDER_TAKEAWAY: "takeaway",
+      };
+      session.preSelectedOrderType = orderMap[input];
+      session.state = "CATALOGUE";
+      session.markModified("preSelectedOrderType");
+      await session.save();
+      await sendButtons(from,
+        `✅ Great choice! Now let's add items to your cart.
+
+Browse our menu:`,
+        [
+          {id:"VIEW_CATALOGUE", title:"🖼️ View Catalogue"},
+          {id:"BROWSE_MENU",    title:"📋 Browse Menu"},
+          {id:"search",         title:"🔍 Search Dish"},
+        ]
       );
       return;
     }
@@ -833,9 +873,15 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (input==="SHARE_LOCATION") {
       session.state = "AWAITING_LOCATION";
       await session.save();
-      await sendText(from, "📍 *Share your location:*\n\nTap the 📎 attachment icon → *Location* → *Send your current location*\n\nWe will use it as your delivery address!");
+      await sendText(from,
+        "📍 *Share your live location:*\n\n" +
+        "Tap the 📎 *attachment icon* below\n" +
+        "→ *Location*\n" +
+        "→ *Send your current location*\n\n" +
+        "We will calculate delivery charge automatically! 🚚"
+      );
       await sendButtons(from, "Or tap below to type address instead:", [
-        {id:"TYPE_ADDRESS", title:"✏️ Type Address Instead"},
+        {id:"SKIP_LOCATION", title:"✏️ Type Address Instead"},
       ]);
       return;
     }
