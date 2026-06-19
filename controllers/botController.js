@@ -352,9 +352,6 @@ const MENU = {
   ]},
 };
 
-// ═══════════════════════════════════════════════════════════
-// ALL ITEMS — for search
-// ═══════════════════════════════════════════════════════════
 const ALL_ITEMS = [];
 for (const [catKey, cat] of Object.entries(MENU)) {
   for (const item of cat.items) {
@@ -362,9 +359,6 @@ for (const [catKey, cat] of Object.entries(MENU)) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════
 function findItem(itemId) {
   for (const cat of Object.values(MENU)) {
     const item = cat.items.find((i) => i.id === itemId);
@@ -409,9 +403,6 @@ function buildCartSummary(cart) {
   return cart.map((i) => `${i.name} x${i.qty}`).join(", ");
 }
 
-// ═══════════════════════════════════════════════════════════
-// PRICING
-// ═══════════════════════════════════════════════════════════
 const GST_PERCENT = 5;
 
 function getDeliveryCharge(orderType, withinFiveKm) {
@@ -419,9 +410,6 @@ function getDeliveryCharge(orderType, withinFiveKm) {
   return withinFiveKm === "yes" ? 100 : 150;
 }
 
-// ═══════════════════════════════════════════════════════════
-// SEND FUNCTIONS
-// ═══════════════════════════════════════════════════════════
 async function sendWelcome(to) {
   await sendImage(to, "https://kavirestaurant.in/wp-content/uploads/2026/05/logo-01-scaled.jpg", "🍛 *Kavi Chettinadu Restaurant*\n_Taste The Tradition_ ✨");
   await sendList(
@@ -498,6 +486,31 @@ async function sendAfterAddToCart(to, cart) {
 // PLACE ORDER
 // ═══════════════════════════════════════════════════════════
 async function placeOrder(from, session) {
+  // ✅ FIX 2: Guard — cart empty or deliveryData missing → block stale button clicks
+  if (!session.cart || session.cart.length === 0) {
+    console.log("⚠️ placeOrder blocked — cart is empty for:", from);
+    await sendButtons(from,
+      "❌ *Your cart is empty!*\n\nPlease start a new order.",
+      [
+        { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
+        { id: "BROWSE_MENU",    title: "📋 Browse Menu"    },
+      ]
+    );
+    return;
+  }
+
+  if (!session.deliveryData || !session.deliveryData.grand_total) {
+    console.log("⚠️ placeOrder blocked — no deliveryData for:", from);
+    await sendButtons(from,
+      "❌ *Order details not found!*\n\nPlease start a new order.",
+      [
+        { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
+        { id: "BROWSE_MENU",    title: "📋 Browse Menu"    },
+      ]
+    );
+    return;
+  }
+
   const {
     name, phone, alternate_phone, address, order_type,
     paymentMethod, addons, addon_total,
@@ -521,7 +534,8 @@ async function placeOrder(from, session) {
 
   const payLabel =
     paymentMethod === "PAY_COD"  ? "COD"  :
-    paymentMethod === "PAY_UPI"  ? "UPI"  : "Card";
+    paymentMethod === "PAY_UPI"  ? "UPI"  :
+    paymentMethod === "PAY_REST" ? "Pay at Restaurant" : "Card";
 
   const tableInfo = order_type === "dine_in" && table_persons
     ? `\n👥 People: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${table_seating === "ac" ? "AC" : "Non-AC"}`
@@ -603,7 +617,6 @@ async function handleCatalogueOrder(from, session, catalogueOrder) {
   }
   session.markModified("cart");
   await session.save();
-  const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
   await sendButtons(from,
     `🛒 *Items added!*\n\n${buildCartMsg(session.cart)}\n\nReady to place your order?`,
     [
@@ -766,7 +779,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
-    // ── MANUAL QUANTITY (type a number while in QUANTITY_SELECT) ─
+    // ── MANUAL QUANTITY ───────────────────────────────────
     if (session.state === "QUANTITY_SELECT" && session.pendingItem && rawInput && /^\d+$/.test(rawInput)) {
       const qty  = parseInt(rawInput);
       const item = session.pendingItem;
@@ -862,13 +875,15 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         order_type, within_five_km,
         table_persons, table_date, table_time, table_seating,
         selected_addons, special_instructions,
+        pickup_time,
       } = flowData;
 
-      // Build full address immediately after destructuring
-      const full_address = [delivery_address, pincode ? `- ${pincode}` : null]
-        .filter(Boolean).join(" ");
-
-
+      const full_address =
+        order_type === "delivery"
+          ? [delivery_address, pincode ? `- ${pincode}` : null].filter(Boolean).join(" ")
+          : order_type === "takeaway"
+          ? `Take Away | Pickup: ${pickup_time || "ASAP"}`
+          : "Dine In";
 
       const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
       const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
@@ -905,6 +920,8 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
       const tableInfo = order_type === "dine_in" && table_persons
         ? `\n👥 *People:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Time:* ${table_time}\n🪑 *Seating:* ${table_seating === "ac" ? "❄️ AC" : "🌿 Non-AC"}`
+        : order_type === "takeaway"
+        ? `\n🕐 *Pickup Time:* ${pickup_time || "ASAP"}`
         : "";
 
       session.deliveryData = {
@@ -919,6 +936,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         table_date:           table_date        || "",
         table_time:           table_time        || "",
         table_seating:        table_seating     || "",
+        pickup_time:          pickup_time       || "",
         addons:               addonItems,
         addon_total:          addonTotal,
         delivery_charge:      deliveryCharge,
@@ -931,7 +949,6 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await session.save();
       console.log(`✅ Session saved | Grand Total: Rs.${grandTotal}`);
 
-      // ── Send Bill Summary + Payment options ──────────────
       await sendButtons(from,
         `🧾 *Order Bill Summary*\n\n` +
         `👤 *Name:* ${customer_name}\n` +
@@ -939,7 +956,8 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         (alternate_phone ? `📞 *Alt:* ${alternate_phone}\n` : "") +
         `📍 *Address:* ${full_address}\n` +
         `🚚 *Type:* ${orderTypeLabel}${tableInfo}\n` +
-        `📝 *Note:* ${special_instructions || "None"}\n` +
+        (addonText !== "None" ? `🍱 *Add-ons:* ${addonText}\n` : "") +
+        (special_instructions ? `📝 *Note:* ${special_instructions}\n` : "") +
         `─────────────────\n` +
         `🛒 *Items:* Rs.${cartTotal}\n` +
         (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal}\n` : "") +
@@ -957,14 +975,65 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
-    // ── PAYMENT ───────────────────────────────────────────
-    if (["PAY_COD", "PAY_UPI", "PAY_QR", "PAY_CARD"].includes(input)) {
+    // ══════════════════════════════════════════════════════
+    // ✅ FIX 1: AWAITING_UPI_ID — moved BEFORE payment block
+    // Previously nested inside PAY_UPI handler — so text
+    // messages never reached it. Now checked early.
+    // ══════════════════════════════════════════════════════
+    if (session.state === "AWAITING_UPI_ID" && rawInput && !rawInput.startsWith("/") && input !== "__FLOW_COMPLETE__") {
+      const upiId = rawInput.trim();
+      const total = session.deliveryData?.grand_total || 0;
+      console.log(`💳 UPI ID received: ${upiId} | Amount: Rs.${total}`);
+
+      session.deliveryData.paymentMethod = "PAY_UPI";
+      session.deliveryData.upi_id = upiId;
+      session.state = "PAYMENT_SELECT";
+      session.markModified("deliveryData");
+      await session.save();
+
+      try {
+        const Razorpay = require("razorpay");
+        const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
+        const payLink = await rzp.paymentLink.create({
+          amount: total * 100, currency: "INR",
+          description: `Kavi Chettinadu - ${session.deliveryData?.name || "Customer"}`,
+          customer: { name: session.deliveryData?.name || "Customer", contact: session.deliveryData?.phone || from },
+          notify: { sms: false, email: false },
+          expire_by: Math.floor(Date.now() / 1000) + 300,
+          reminder_enable: false,
+        });
+        await sendText(from,
+          `✅ *UPI ID received:* ${upiId}\n\n` +
+          `💰 Amount: *Rs.${total}*\n\n` +
+          `🔗 *Click to Pay:* ${payLink.short_url}\n\n` +
+          `This will open PhonePe / GPay / Paytm payment page.\n` +
+          `⏰ Link valid for 5 minutes.`
+        );
+      } catch (rzpErr) {
+        console.error("❌ Razorpay error:", rzpErr.message);
+        const restUpiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
+        await sendText(from,
+          `📲 *UPI Payment*\n\n` +
+          `Pay to: *${restUpiId}*\n` +
+          `💰 Amount: *Rs.${total}*\n\n` +
+          `After payment, confirm below.`
+        );
+      }
+      await sendButtons(from, "✅ Have you completed the payment?", [
+        { id: "UPI_DONE", title: "✅ Payment Done"    },
+        { id: "PAY_COD",  title: "💵 Pay COD instead" },
+      ]);
+      return;
+    }
+
+    // ── PAYMENT BUTTONS ───────────────────────────────────
+    if (["PAY_COD", "PAY_UPI", "PAY_QR", "PAY_CARD", "PAY_REST"].includes(input)) {
       session.deliveryData.paymentMethod = input;
       session.markModified("deliveryData");
       await session.save();
 
       if (input === "PAY_QR" || input === "PAY_UPI") {
-        const total = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+        const total = session.deliveryData?.grand_total || 0;
         session.state = "AWAITING_UPI_ID";
         session.markModified("deliveryData");
         await session.save();
@@ -978,54 +1047,8 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         return;
       }
 
-      // ── UPI ID entered by user ────────────────────────────
-      if (session.state === "AWAITING_UPI_ID" && rawInput && !rawInput.startsWith("/")) {
-        const upiId = rawInput.trim();
-        const total = session.deliveryData?.grand_total || 0;
-        session.deliveryData.paymentMethod = "PAY_UPI";
-        session.deliveryData.upi_id = upiId;
-        session.state = "PAYMENT_SELECT";
-        session.markModified("deliveryData");
-        await session.save();
-        try {
-          const Razorpay = require("razorpay");
-          const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
-          const payLink = await rzp.paymentLink.create({
-            amount: total * 100, currency: "INR",
-            description: `Kavi Chettinadu - ${session.deliveryData?.name || "Customer"}`,
-            customer: { name: session.deliveryData?.name || "Customer", contact: session.deliveryData?.phone || from },
-            notify: { sms: false, email: false },
-            expire_by: Math.floor(Date.now() / 1000) + 300,
-            reminder_enable: false,
-          });
-          await sendText(from,
-            `✅ *UPI ID received:* ${upiId}\n\n` +
-            `💰 Amount: *Rs.${total}*\n\n` +
-            `🔗 *Click to Pay:* ${payLink.short_url}\n\n` +
-            `This will open PhonePe / GPay / Paytm payment page.\n` +
-            `⏰ Link valid for 5 minutes.`
-          );
-        } catch (rzpErr) {
-          console.error("❌ Razorpay error:", rzpErr.message);
-          const restUpiId = process.env.RESTAURANT_UPI_ID || "kaviyakiruthi22@okhdfcbank";
-          await sendText(from,
-            `📲 *UPI Payment*\n\n` +
-            `Pay to: *${restUpiId}*\n` +
-            `💰 Amount: *Rs.${total}*\n\n` +
-            `After payment, confirm below.`
-          );
-        }
-        await sendButtons(from, "✅ Have you completed the payment?", [
-          { id: "UPI_DONE", title: "✅ Payment Done"    },
-          { id: "PAY_COD",  title: "💵 Pay COD instead" },
-        ]);
-        return;
-      }
       if (input === "PAY_CARD") {
-        const total = session.deliveryData?.grand_total || session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-        session.deliveryData.paymentMethod = "PAY_CARD";
-        session.markModified("deliveryData");
-        await session.save();
+        const total = session.deliveryData?.grand_total || 0;
         try {
           const Razorpay = require("razorpay");
           const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
@@ -1041,7 +1064,6 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
             `💳 *Card Payment*\n\n` +
             `💰 Amount: *Rs.${total}*\n\n` +
             `🔗 *Click to Pay:* ${payLink.short_url}\n\n` +
-            `This will open PhonePe / GPay / Card payment page.\n` +
             `Complete OTP verification and pay.\n` +
             `⏰ Link valid for 10 minutes.`
           );
@@ -1056,11 +1078,13 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         }
         return;
       }
+
+      // PAY_COD or PAY_REST → place order directly
       await placeOrder(from, session);
       return;
     }
 
-    // ── CARD AT DELIVERY ─────────────────────────────────
+    // ── CARD AT DELIVERY ──────────────────────────────────
     if (input === "CARD_COD") {
       session.deliveryData.paymentMethod = "PAY_CARD";
       session.state = "PAYMENT_SELECT";
