@@ -4,15 +4,16 @@ const crypto  = require("crypto");
 const fs      = require("fs");
 const path    = require("path");
 const Session = require("../models/Session");
-const { sendButtons, sendText } = require("../config/whatsapp");
+const { sendButtons } = require("../config/whatsapp");
+const { getChargeFromPincode, getChargeFromLocation } = require("../config/distanceHelper");
 
 let privateKey;
 if (process.env.PRIVATE_KEY) {
   privateKey = process.env.PRIVATE_KEY.replace(/\\n/g, "\n").replace(/\\r/g, "");
-  console.log("🔑 Using PRIVATE_KEY from env, length:", privateKey.length);
+  console.log("🔑 PRIVATE_KEY from env, length:", privateKey.length);
 } else {
   privateKey = fs.readFileSync(path.join(__dirname, "../private.pem"), "utf8");
-  console.log("🔑 Using private.pem file, length:", privateKey.length);
+  console.log("🔑 Using private.pem, length:", privateKey.length);
 }
 
 function decryptRequest(body) {
@@ -83,50 +84,35 @@ router.post("/endpoint", async (req, res) => {
 
     // ✅ Encrypted ping
     if (action === "ping") {
-      console.log("🏓 Encrypted ping → pong");
       return res.status(200).send(encryptResponse({ version: "3.0", data: { status: "active" } }, aesKey, iv));
     }
 
-    // ── Extract phone from flow_token ─────────────────────
-    // format: "delivery_<phone>_<timestamp>"
+    // Extract phone from token: "delivery_<phone>_<timestamp>"
     const tokenParts = (flow_token || "").split("_");
     const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
     console.log(`📞 Phone: ${phone}`);
 
-    // ✅ INIT — fetch cart from session for accurate summary
+    // ✅ INIT — fetch cart from session
     if (action === "INIT" || (action === "navigate" && (!screen || screen === ""))) {
       console.log("📋 INIT → ORDER_TYPE");
-
-      // Fetch session to get real cart data
-      let cartSummary = "";
-      let totalAmount = "Rs.0";
+      let cartSummary = "", totalAmount = "Rs.0";
       if (phone) {
         try {
           const session = await Session.findOne({ phoneNumber: phone });
-          if (session && session.cart && session.cart.length > 0) {
+          if (session?.cart?.length > 0) {
             cartSummary = session.cart.map(i => `${i.name} x${i.qty}`).join(", ");
             const total = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
             totalAmount = `Rs.${total}`;
           }
-        } catch (e) {
-          console.error("Session fetch error:", e.message);
-        }
+        } catch (e) { console.error("Session fetch error:", e.message); }
       }
-
-      const respData = {
+      return res.status(200).send(encryptResponse({
         screen: "ORDER_TYPE",
-        data: {
-          cart_summary:   cartSummary,
-          total_amount:   totalAmount,
-          error_messages: {},
-          init_values:    {},
-        },
-      };
-      console.log("📤 INIT Response:", JSON.stringify(respData));
-      return res.status(200).send(encryptResponse(respData, aesKey, iv));
+        data: { cart_summary: cartSummary, total_amount: totalAmount, error_messages: {}, init_values: {} },
+      }, aesKey, iv));
     }
 
-    // ── ORDER_TYPE → data_exchange → route ───────────────
+    // ── ORDER_TYPE → route ────────────────────────────────
     if (screen === "ORDER_TYPE") {
       const orderType = data.order_type || "delivery";
       console.log(`📋 ORDER_TYPE → ${orderType}`);
@@ -138,34 +124,69 @@ router.post("/endpoint", async (req, res) => {
         cart_summary:    data.cart_summary    || "",
         total_amount:    data.total_amount    || "",
       };
+
+      // Fetch live_location_address from session if user shared location
+      let liveLocationAddress = "";
+      if (phone && orderType === "delivery") {
+        try {
+          const session = await Session.findOne({ phoneNumber: phone });
+          liveLocationAddress = session?.deliveryData?.live_location || "";
+        } catch (e) {}
+      }
+
       if (orderType === "takeaway") {
-        console.log("📋 Routing → TAKEAWAY_ADDONS");
-        return res.status(200).send(encryptResponse({ screen: "TAKEAWAY_ADDONS", data: commonData }, aesKey, iv));
+        return res.status(200).send(encryptResponse({ screen: "TAKEAWAY_DETAILS", data: commonData }, aesKey, iv));
       }
       if (orderType === "dine_in") {
-        console.log("📋 Routing → DINE_BOOKING");
         return res.status(200).send(encryptResponse({ screen: "DINE_BOOKING", data: commonData }, aesKey, iv));
       }
-      console.log("📋 Routing → DELIVERY_ADDRESS");
-      return res.status(200).send(encryptResponse({ screen: "DELIVERY_ADDRESS", data: commonData }, aesKey, iv));
+      // delivery
+      return res.status(200).send(encryptResponse({
+        screen: "DELIVERY_ADDRESS",
+        data: { ...commonData, live_location_address: liveLocationAddress },
+      }, aesKey, iv));
     }
 
-    // ── COMPLETE ─────────────────────────────────────────
+    // ── COMPLETE ──────────────────────────────────────────
     if (action === "complete") {
-      console.log("✅ Flow COMPLETE!");
-      console.log("📦 Data:", JSON.stringify(data, null, 2));
+      console.log("✅ Flow COMPLETE! Data:", JSON.stringify(data, null, 2));
 
       const {
         customer_name, customer_phone, alternate_phone,
-        order_type, delivery_address, pincode, within_five_km,
+        order_type, delivery_address, pincode, live_location_address,
         selected_addons, special_instructions,
         table_persons, table_date, table_time, table_seating,
         pickup_time,
       } = data;
 
+      // ✅ Distance-based delivery charge
+      let deliveryCharge = 0;
+      let distanceInfo = "";
+      if (order_type === "delivery") {
+        let distResult;
+        // Check session for live location coords
+        let session = await Session.findOne({ phoneNumber: phone });
+        const liveCoords = session?.deliveryData?.live_location_coords;
+
+        if (liveCoords) {
+          distResult = getChargeFromLocation(liveCoords.lat, liveCoords.lng);
+          distanceInfo = `📍 Live Location (${distResult.km}km)`;
+        } else if (pincode) {
+          distResult = getChargeFromPincode(pincode);
+          distanceInfo = `📮 ${distResult.area || pincode} (${distResult.km}km)`;
+        } else {
+          distResult = { km: 5, charge: 150 };
+          distanceInfo = "📍 Distance unknown";
+        }
+        deliveryCharge = distResult.charge;
+        console.log(`🚚 Delivery: ${distanceInfo} → Rs.${deliveryCharge}`);
+      }
+
       const full_address =
         order_type === "delivery"
-          ? [delivery_address, pincode ? `- ${pincode}` : null].filter(Boolean).join(" ")
+          ? live_location_address
+            ? `${delivery_address ? delivery_address + ", " : ""}📍 ${live_location_address}${pincode ? " - " + pincode : ""}`
+            : [delivery_address, pincode ? `- ${pincode}` : null].filter(Boolean).join(" ")
           : order_type === "takeaway"
           ? `Take Away | Pickup: ${pickup_time || "ASAP"}`
           : "Dine In";
@@ -173,8 +194,6 @@ router.post("/endpoint", async (req, res) => {
       const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
       const addonItems = addonList.map(id => ADDON_PRICES[id]).filter(Boolean);
       const addonTotal = addonItems.reduce((s, a) => s + a.price, 0);
-      const isDelivery = order_type === "delivery";
-      const deliveryCh = isDelivery ? (within_five_km === "yes" ? 100 : 150) : 0;
 
       let session = await Session.findOne({ phoneNumber: phone });
       if (!session) {
@@ -183,7 +202,7 @@ router.post("/endpoint", async (req, res) => {
       }
 
       const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-      const subtotal   = cartTotal + addonTotal + deliveryCh;
+      const subtotal   = cartTotal + addonTotal + deliveryCharge;
       const gstAmount  = Math.round(subtotal * GST_PERCENT / 100);
       const grandTotal = subtotal + gstAmount;
 
@@ -191,23 +210,19 @@ router.post("/endpoint", async (req, res) => {
         order_type === "delivery" ? "🚚 Home Delivery" :
         order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
 
-      const deliveryLabel = isDelivery
-        ? `Rs.${deliveryCh} (${within_five_km === "yes" ? "Within 5km" : "Above 5km"})`
+      const deliveryLabel = order_type === "delivery"
+        ? `Rs.${deliveryCharge} (${distanceInfo})`
         : "Free";
 
-      const addonText = addonItems.length > 0
-        ? addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ")
-        : "";
+      const addonText = addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ");
+      const itemsList = session.cart.map(i => `• ${i.name} × ${i.qty} = Rs.${i.price * i.qty}`).join("\n");
 
       const tableInfo =
         order_type === "dine_in"
-          ? `\n👥 *People:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Time:* ${table_time}\n🪑 *Seating:* ${table_seating === "ac" ? "❄️ AC" : "🌿 Non-AC"}`
+          ? `\n👥 *Guests:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Slot:* ${table_time}\n🪑 *Seating:* ${table_seating === "ac" ? "❄️ AC" : "🌿 Non-AC"}`
           : order_type === "takeaway"
-          ? `\n🕐 *Pickup Time:* ${pickup_time || "ASAP"}`
+          ? `\n🕐 *Pickup:* ${pickup_time || "ASAP"}`
           : "";
-
-      // Build items list for bill
-      const itemsList = session.cart.map(i => `• ${i.name} × ${i.qty} = Rs.${i.price * i.qty}`).join("\n");
 
       session.deliveryData = {
         name:                 customer_name     || "Customer",
@@ -223,10 +238,12 @@ router.post("/endpoint", async (req, res) => {
         pickup_time:          pickup_time       || "",
         addons:               addonItems,
         addon_total:          addonTotal,
-        delivery_charge:      deliveryCh,
+        delivery_charge:      deliveryCharge,
+        distance_info:        distanceInfo,
         gst_amount:           gstAmount,
         special_instructions: special_instructions || "",
         grand_total:          grandTotal,
+        live_location:        session.deliveryData?.live_location || "",
       };
       session.state = "PAYMENT_SELECT";
       session.markModified("deliveryData");
@@ -246,7 +263,7 @@ router.post("/endpoint", async (req, res) => {
         `─────────────────\n` +
         `🛒 *Items:*\n${itemsList}\n` +
         `─────────────────\n` +
-        `🛒 *Items Total:* Rs.${cartTotal}\n` +
+        `🛒 *Subtotal:* Rs.${cartTotal}\n` +
         (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal}\n` : "") +
         `🚚 *Delivery:* ${deliveryLabel}\n` +
         `📊 *GST (${GST_PERCENT}%):* Rs.${gstAmount}\n` +
@@ -254,29 +271,23 @@ router.post("/endpoint", async (req, res) => {
         `💰 *Grand Total: Rs.${grandTotal}*\n\n` +
         `Select payment method:`;
 
-      if (order_type === "delivery") {
-        await sendButtons(phone, billText, [
-          { id: "PAY_COD",  title: "💵 Cash on Delivery" },
-          { id: "PAY_UPI",  title: "📲 UPI Payment"      },
-          { id: "PAY_CARD", title: "💳 Card Payment"      },
-        ]);
-      } else if (order_type === "takeaway") {
-        await sendButtons(phone, billText, [
-          { id: "PAY_COD",  title: "💵 Cash on Pickup"   },
-          { id: "PAY_UPI",  title: "📲 UPI Payment"      },
-          { id: "PAY_CARD", title: "💳 Card Payment"      },
-        ]);
-      } else {
-        await sendButtons(phone, billText, [
+      const payButtons =
+        order_type === "dine_in" ? [
           { id: "PAY_REST", title: "🍽️ Pay at Restaurant" },
           { id: "PAY_UPI",  title: "📲 UPI Payment"       },
           { id: "PAY_CARD", title: "💳 Card Payment"       },
-        ]);
-      }
+        ] : order_type === "takeaway" ? [
+          { id: "PAY_COD",  title: "💵 Cash on Pickup"    },
+          { id: "PAY_UPI",  title: "📲 UPI Payment"       },
+          { id: "PAY_CARD", title: "💳 Card Payment"       },
+        ] : [
+          { id: "PAY_COD",  title: "💵 Cash on Delivery"  },
+          { id: "PAY_UPI",  title: "📲 UPI Payment"       },
+          { id: "PAY_CARD", title: "💳 Card Payment"       },
+        ];
 
-      return res.status(200).send(
-        encryptResponse({ screen: "SUCCESS", data: { status: "payment_pending" } }, aesKey, iv)
-      );
+      await sendButtons(phone, billText, payButtons);
+      return res.status(200).send(encryptResponse({ screen: "SUCCESS", data: { status: "payment_pending" } }, aesKey, iv));
     }
 
     console.log("⚠️ Unhandled:", { action, screen });
