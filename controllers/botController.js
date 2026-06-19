@@ -397,6 +397,15 @@ function buildCartSummary(cart) {
 
 const GST_PERCENT = 5;
 
+
+// ✅ Normalize phone for Razorpay — must be 10 digits, no country code
+function normalizePhone(phone) {
+  return (phone || "")
+    .replace(/^\+?91/, "")
+    .replace(/\D/g, "")
+    .slice(-10)
+    .padEnd(10, "0") || "9999999999";
+}
 function getDeliveryCharge(orderType, withinFiveKm) {
   if (orderType !== "delivery") return 0;
   return withinFiveKm === "yes" ? 100 : 150;
@@ -954,7 +963,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           const payLink = await rzp.paymentLink.create({
             amount: total * 100, currency: "INR",
             description: `Kavi Chettinadu - ${session.deliveryData?.name || "Customer"}`,
-            customer: { name: session.deliveryData?.name || "Customer", contact: session.deliveryData?.phone || from },
+            customer: { name: session.deliveryData?.name || "Customer", contact: normalizePhone(session.deliveryData?.phone || from) },
             notify: { sms: false, email: false },
             expire_by: Math.floor(Date.now() / 1000) + 300,
             reminder_enable: false,
@@ -1007,7 +1016,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           const payLink = await rzp.paymentLink.create({
             amount: total * 100, currency: "INR",
             description: `Kavi Chettinadu - ${session.deliveryData?.name || "Customer"}`,
-            customer: { name: session.deliveryData?.name || "Customer", contact: session.deliveryData?.phone || from },
+            customer: { name: session.deliveryData?.name || "Customer", contact: normalizePhone(session.deliveryData?.phone || from) },
             notify: { sms: false, email: false },
             expire_by: Math.floor(Date.now() / 1000) + 600,
             reminder_enable: false,
