@@ -173,6 +173,7 @@ router.post("/endpoint", async (req, res) => {
         selected_addons, special_instructions,
         table_persons, table_date, table_time, table_seating,
         pickup_time,
+        celebration_addons, occasion_name,
       } = data;
 
       // ✅ Distance-based delivery charge
