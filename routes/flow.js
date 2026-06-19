@@ -106,25 +106,33 @@ router.post("/endpoint", async (req, res) => {
           }
         } catch (e) { console.error("Session fetch error:", e.message); }
       }
-      // Pre-fill name from WhatsApp profile if available
+      // Pre-fill name and phone from WhatsApp session
       let initValues = {};
-      let whatsappName = "";
+      let preSelectedType = "";
       if (phone) {
         try {
           const sess = await Session.findOne({ phoneNumber: phone });
-          if (sess?.whatsappName) {
-            whatsappName = sess.whatsappName;
-            initValues = { customer_name: whatsappName, customer_phone: phone.replace(/^91/, "") };
+          const waName = sess?.whatsappName || "";
+          const waPhone = phone.replace(/^91/, "");
+          preSelectedType = sess?.preSelectedOrderType || "";
+          if (waName || waPhone) {
+            initValues = {
+              customer_name:  waName,
+              customer_phone: waPhone,
+              // Pre-select order type if user chose from main menu
+              ...(preSelectedType ? { order_type: preSelectedType } : {}),
+            };
           }
         } catch (e) {}
       }
+      console.log(`📋 INIT | preSelected: ${preSelectedType} | cart: ${cartSummary}`);
       return res.status(200).send(encryptResponse({
         screen: "ORDER_TYPE",
         data: {
-          cart_summary: cartSummary,
-          total_amount: totalAmount,
+          cart_summary:   cartSummary,
+          total_amount:   totalAmount,
           error_messages: {},
-          init_values: initValues,
+          init_values:    initValues,
         },
       }, aesKey, iv));
     }
@@ -133,9 +141,14 @@ router.post("/endpoint", async (req, res) => {
     if (screen === "ORDER_TYPE") {
       const orderType = data.order_type || "delivery";
       console.log(`📋 ORDER_TYPE → ${orderType}`);
+
+      // Fetch session for pre-selected type and live location
+      let sess = null;
+      try { sess = await Session.findOne({ phoneNumber: phone }); } catch(e) {}
+
       const commonData = {
-        customer_name:   data.customer_name   || "",
-        customer_phone:  data.customer_phone  || "",
+        customer_name:   data.customer_name   || sess?.whatsappName || "",
+        customer_phone:  data.customer_phone  || (phone ? phone.replace(/^91/,"") : ""),
         alternate_phone: data.alternate_phone || "",
         order_type:      orderType,
         cart_summary:    data.cart_summary    || "",
@@ -149,14 +162,8 @@ router.post("/endpoint", async (req, res) => {
         return res.status(200).send(encryptResponse({ screen: "DINE_BOOKING", data: commonData }, aesKey, iv));
       }
 
-      // delivery → check if user shared live location before flow
-      let liveLocationAddress = "";
-      if (phone) {
-        try {
-          const sess = await Session.findOne({ phoneNumber: phone });
-          liveLocationAddress = sess?.deliveryData?.live_location || "";
-        } catch (e) {}
-      }
+      // delivery
+      const liveLocationAddress = sess?.deliveryData?.live_location || "";
       return res.status(200).send(encryptResponse({
         screen: "DELIVERY_ADDRESS",
         data: { ...commonData, live_location_address: liveLocationAddress },
