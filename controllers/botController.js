@@ -257,7 +257,9 @@ async function generateRazorpayLink(session, from, type="upi") {
 // PLACE ORDER
 // ═══════════════════════════════════════════════════════════
 async function placeOrder(from, session) {
-  if (!session.deliveryData?.grand_total) {
+  const orderType = session.deliveryData?.order_type || "";
+  // Dine In: grand_total can be 0 (no food order, just table booking)
+  if (!orderType && !session.deliveryData?.grand_total) {
     await sendButtons(from,"❌ *Order details missing!*\n\nPlease start again.",[
       {id:"hi",title:"🍴 Start Over"},
     ]);
@@ -279,7 +281,9 @@ async function placeOrder(from, session) {
   const delCharge  = delivery_charge??0;
   const gst        = gst_amount??0;
   const finalTotal = grand_total||(cartTotal+addonTotal+delCharge+gst);
-  const orderId    = "KAV"+Date.now();
+  // Generate booking/order ID
+  const prefix  = order_type==="dine_in" ? "BKG" : "KAV";
+  const orderId = prefix + Date.now();
 
   const orderTypeLabel =
     order_type==="delivery"?"🚚 Home Delivery":
@@ -325,9 +329,13 @@ async function placeOrder(from, session) {
   const itemsList=allItems.map(i=>`• ${i.name} × ${i.quantity} = Rs.${i.price*i.quantity}`).join("\n");
   const delivLabel=isDelivery?`Rs.${delCharge} (${distance_info||""})` :"Free";
 
+  const confirmHeader = order_type==="dine_in"
+    ? `🎉 *Table Booked Successfully!*\n`
+    : `✅ *Order Confirmed!*\n`;
+
   await sendButtons(from,
-    `🎉 *Order Confirmed!*\n`+
-    `📋 *Order ID:* #${orderId}\n`+
+    confirmHeader+
+    `📋 *${order_type==="dine_in"?"Booking":"Order"} ID:* #${orderId}\n`+
     `─────────────────\n`+
     `🛒 *Items:*\n${itemsList}\n`+
     `─────────────────\n`+
@@ -815,7 +823,9 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
     // ── PAYMENT ───────────────────────────────────────────
     if (["PAY_COD","PAY_UPI","PAY_CARD","PAY_REST"].includes(input)) {
-      if (!session.deliveryData?.grand_total) {
+      const isValidOrder = session.deliveryData?.order_type ||
+                           session.deliveryData?.grand_total > 0;
+      if (!isValidOrder) {
         await sendButtons(from,"❌ *No active order.*\n\nSend *hi* to start.",[{id:"hi",title:"🍴 Start Ordering"}]);
         return;
       }
