@@ -86,7 +86,7 @@ async function getSessionData(phone) {
 router.post("/endpoint", async (req, res) => {
   try {
     const body = req.body;
-    console.log("📩 Flow endpoint | action:", body?.action || "encrypted");
+    console.log("📩 Flow endpoint v5 | action:", body?.action || "encrypted");
 
     // Unencrypted ping
     if (body?.action === "ping") {
