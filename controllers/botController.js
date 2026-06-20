@@ -688,18 +688,44 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       return;
     }
 
-    // ── PLACE ORDER → open flow directly ────────────────
+    // ── PLACE ORDER ───────────────────────────────────────
     if (["PLACE_ORDER","PLACE_ORDER_FLOW","/order"].includes(input)) {
       if (!session.cart||session.cart.length===0) {
         await sendButtons(from,"❌ Your cart is empty!",[{id:"VIEW_CATALOGUE",title:"🖼️ View Catalogue"},{id:"BROWSE_MENU",title:"📋 Browse Menu"}]);
         return;
       }
-      console.log(`🎯 PLACE_ORDER | preSelectedType: ${session.preSelectedOrderType}`);
-      session.state="AWAITING_FLOW";await session.save();
-      const cartSummary=buildCartSummary(session.cart);
-      const total=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
-      const pType=session.preSelectedOrderType||"";
-      await sendDeliveryFlow(from,cartSummary,`Rs.${total}`,pType);
+      const preSelected = session.preSelectedOrderType||"";
+      console.log(`🎯 PLACE_ORDER | preSelectedType: ${preSelected}`);
+
+      // ✅ Delivery → show location choice list FIRST
+      if (preSelected === "delivery") {
+        session.state = "AWAITING_LOCATION_CHOICE";
+        session.deliveryData = {};
+        session.markModified("deliveryData");
+        await session.save();
+        const name  = session.whatsappName || "there";
+        const phone = from.replace(/^91/,"");
+        await sendList(from,
+          "📍 Delivery Address",
+          `👤 *${name}* | 📞 *${phone}*\n\nHow would you like to share your address?`,
+          "Choose",
+          [{
+            title: "Address Options",
+            rows: [
+              {id:"SHARE_LOCATION", title:"📍 Share Live Location", description:"Tap 📎 → Location → Send"},
+              {id:"TYPE_ADDRESS",   title:"✏️ Type My Address",     description:"Enter address in form"},
+            ]
+          }]
+        );
+        return;
+      }
+
+      // Takeaway / Dine In → flow directly
+      session.state = "AWAITING_FLOW";
+      await session.save();
+      const cartSummary = buildCartSummary(session.cart);
+      const total = session.cart.reduce((s,i)=>s+i.price*i.qty,0);
+      await sendDeliveryFlow(from, cartSummary, `Rs.${total}`, preSelected);
       return;
     }
 
@@ -880,6 +906,20 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await session.save();
       await sendText(from, "✅ *Payment received!*\n\nConfirming your order...");
       await placeOrder(from, session);
+      return;
+    }
+
+    // ── TYPE ADDRESS → open flow with address fields ────────
+    if (input === "TYPE_ADDRESS") {
+      session.deliveryData = { live_location: "" };
+      session.preSelectedOrderType = "delivery";
+      session.state = "AWAITING_FLOW";
+      session.markModified("deliveryData");
+      session.markModified("preSelectedOrderType");
+      await session.save();
+      const cartSummary = buildCartSummary(session.cart);
+      const total = session.cart.reduce((s,i) => s+i.price*i.qty, 0);
+      await sendDeliveryFlow(from, cartSummary, `Rs.${total}`, "delivery");
       return;
     }
 
