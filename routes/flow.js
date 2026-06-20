@@ -138,11 +138,11 @@ router.post("/endpoint", async (req, res) => {
         waPhone = phone?.replace(/^91/, "") || "";
       }
 
-      console.log(`📋 preSelected: ${preSelectedType} | cart: ${cartSummary}`);
+      console.log(`📋 preSelected: ${preSelectedType} | cart: ${cartSummary} | name: ${waName}`);
 
       const initValues = {
-        ...(waName  ? { customer_name:  waName  } : {}),
-        ...(waPhone ? { customer_phone: waPhone } : {}),
+        customer_name:  waName  || "",
+        customer_phone: waPhone || "",
       };
 
       // ✅ Jump directly — no ORDER_TYPE shown to user
