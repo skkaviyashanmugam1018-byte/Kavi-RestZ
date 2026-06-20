@@ -154,8 +154,13 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
       if (preSelectedType === "delivery") {
+        // If live location shared → DELIVERY_DETAILS_LIVE (address optional)
+        // Else → DELIVERY_DETAILS (address required)
+        const hasLiveLocation = liveLocation && liveLocation.length > 0;
+        const deliveryScreen = hasLiveLocation ? "DELIVERY_DETAILS_LIVE" : "DELIVERY_DETAILS";
+        console.log(`📋 Delivery screen: ${deliveryScreen} | live: ${hasLiveLocation}`);
         return res.status(200).send(encryptResponse({
-          screen: "DELIVERY_DETAILS",
+          screen: deliveryScreen,
           data: {
             order_type: "delivery",
             cart_summary: cartSummary,
