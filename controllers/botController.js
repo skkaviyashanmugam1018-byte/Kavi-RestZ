@@ -827,12 +827,17 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         const total=session.deliveryData.grand_total;
         const link=await generateRazorpayLink(session,from,"upi");
         if (link) {
-          await sendText(from,`📲 *UPI / Online Payment*\n\n💰 Amount: *Rs.${total}*\n\n🔗 *Click to Pay:*\n${link}\n\nPay via PhonePe / GPay / Paytm\n⏰ Valid 30 mins.`);
+          await sendButtons(from,
+            `📲 *UPI / Online Payment*\n\n💰 Amount: *Rs.${total}*\n\n🔗 Click to Pay:\n${link}\n\nPay via PhonePe / GPay / Paytm / UPI`,
+            [{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]
+          );
         } else {
           const restUpi=process.env.RESTAURANT_UPI_ID||"kaviyakiruthi22@okhdfcbank";
-          await sendText(from,`📲 *UPI Payment*\n\nPay to: *${restUpi}*\n💰 Amount: *Rs.${total}*`);
+          await sendButtons(from,
+            `📲 *UPI Payment*\n\nPay to: *${restUpi}*\n💰 Amount: *Rs.${total}*\n\nAfter payment tap below:`,
+            [{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]
+          );
         }
-        await sendButtons(from,"✅ Completed the payment?",[{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]);
         return;
       }
 
@@ -840,8 +845,10 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         const total=session.deliveryData.grand_total;
         const link=await generateRazorpayLink(session,from,"card");
         if (link) {
-          await sendText(from,`💳 *Card Payment*\n\n💰 Amount: *Rs.${total}*\n\n🔗 *Click to Pay:*\n${link}\n\n⏰ Valid 60 mins.`);
-          await sendButtons(from,"✅ Completed?",[{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]);
+          await sendButtons(from,
+            `💳 *Card / Online Payment*\n\n💰 Amount: *Rs.${total}*\n\n🔗 Click to Pay:\n${link}\n\nPay via Credit / Debit Card / Net Banking`,
+            [{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]
+          );
         } else {
           await sendText(from,"💳 Card payment will be collected at delivery/counter.");
           await placeOrder(from,session);
