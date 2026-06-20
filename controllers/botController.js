@@ -181,13 +181,13 @@ const SEATING_MAP = {
 // SEND WELCOME
 // ═══════════════════════════════════════════════════════════
 async function sendWelcome(to, name="") {
-  const greet = name ? `Hello ${name}!` : "Welcome!";
+  const greet = name ? `👋 Hello ${name}!` : "👋 Welcome!";
   await sendImage(to, LOGO_URL,
-    `🍛 *Kavi Chettinadu*\n✨ _Taste The Tradition_\n\n👋 ${greet} 🙏`
+    `🍛 *Kavi Chettinadu Restaurant*\n✨ _Taste The Tradition_\n\n${greet}\n\n🏆 Authentic Chettinad Cuisine\n📍 Rameswaram | ⏰ 12PM – 10:30PM`
   );
   await sendButtons(to,
-    "What would you like to do next?",
-    [{id:"GET_STARTED",title:"🍴 Get Started"}]
+    "🍽️ What would you like today?",
+    [{id:"GET_STARTED", title:"🍴 Explore Now"}]
   );
 }
 
@@ -467,7 +467,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await session.save();
       await sendList(from,
         "🍛 Kavi Chettinadu",
-        "What would you like to do?",
+        "How can we serve you today? 🙏",
         "Choose",
         [{
           title:"Order Options",
