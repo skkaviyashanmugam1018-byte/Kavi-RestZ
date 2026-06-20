@@ -211,7 +211,9 @@ router.post("/endpoint", async (req, res) => {
 
       const {
         order_type,
+        address_type,
         delivery_address, pincode,
+        alternate_phone: alt_phone_from_flow,
         selected_addons, special_instructions,
         table_persons, table_date, table_time, table_seating,
         celebration_addons, occasion_name,
@@ -222,7 +224,7 @@ router.post("/endpoint", async (req, res) => {
       const sess2 = await getSessionData(phone);
       const customer_name  = sess2?.whatsappName || "Customer";
       const customer_phone = phone?.replace(/^91/, "") || "";
-      const alternate_phone = "";
+      const alternate_phone = alt_phone_from_flow || "";
 
       // ── Delivery charge ──────────────────────────────────
       let deliveryCharge = 0, distanceInfo = "";
