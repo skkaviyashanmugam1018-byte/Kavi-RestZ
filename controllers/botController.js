@@ -183,7 +183,7 @@ const SEATING_MAP = {
 async function sendWelcome(to, name="") {
   const greet = name ? `Hello ${name}!` : "Welcome!";
   await sendImage(to, LOGO_URL,
-    `🍛 *Welcome to Kavi Chettinadu Restaurant!*\n✨ _Taste The Tradition_\n\n👋 ${greet} We are glad you are here! 🙏`
+    `🍛 *Kavi Chettinadu*\n✨ _Taste The Tradition_\n\n👋 ${greet} 🙏`
   );
   await sendButtons(to,
     "What would you like to do next?",
@@ -226,7 +226,7 @@ async function sendQuantitySelect(to, item) {
 async function sendAfterAddToCart(to, cart) {
   const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
   await sendButtons(to,
-    `✅ *Item added!*\n\n🛒 *Cart Total: Rs.${total}*\n\nWhat next?`,
+    `✅ Added! 🛒 *Rs.${total}*`,
     [{id:"ADD_MORE",title:"➕ Add More"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"PLACE_ORDER",title:"✅ Place Order"}]
   );
 }
@@ -326,7 +326,7 @@ async function placeOrder(from, session) {
   const delivLabel=isDelivery?`Rs.${delCharge} (${distance_info||""})` :"Free";
 
   await sendButtons(from,
-    `🎉 *Order Placed Successfully!*\n\n`+
+    `🎉 *Order Confirmed!*\n`+
     `📋 *Order ID:* #${orderId}\n`+
     `─────────────────\n`+
     `🛒 *Items:*\n${itemsList}\n`+
@@ -360,7 +360,7 @@ async function handleCatalogueOrder(from, session, catalogueOrder) {
   session.markModified("cart");
   await session.save();
   await sendButtons(from,
-    `🛒 *Items added!*\n\n${buildCartMsg(session.cart)}\n\nReady to order?`,
+    `${buildCartMsg(session.cart)}`,
     [{id:"PLACE_ORDER",title:"✅ Place Order"},{id:"VIEW_CATALOGUE",title:"🖼️ More Items"},{id:"CLEAR_CART",title:"🗑️ Clear Cart"}]
   );
 }
@@ -439,7 +439,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.preSelectedOrderType=null;
       session.markModified("cart");session.markModified("deliveryData");
       await session.save();
-      await sendText(from,"👋 *Thank you for visiting Kavi Chettinadu Restaurant!*\n\nSend *hi* anytime to order again. 🍛");
+      await sendText(from,"👋 Thank you! Visit again soon 🍛\nSend *hi* to order anytime!");
       return;
     }
 
@@ -464,11 +464,11 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         [{
           title:"Order Options",
           rows:[
-            {id:"ORDER_DELIVERY",title:"🚚 Home Delivery",description:"Delivered to your doorstep"},
+            {id:"ORDER_DELIVERY",title:"🚚 Home Delivery",description:"Doorstep delivery"},
             {id:"ORDER_TAKEAWAY",title:"🥡 Take Away",    description:"Pickup at restaurant"},
-            {id:"ORDER_DINEIN",  title:"🍽️ Dine In",      description:"Book a table at restaurant"},
-            {id:"BROWSE_MENU",   title:"📋 Browse Menu",  description:"Explore our full menu"},
-            {id:"exit",          title:"❌ Exit",           description:"End conversation"},
+            {id:"ORDER_DINEIN",  title:"🍽️ Dine In",      description:"Book a table"},
+            {id:"BROWSE_MENU",   title:"📋 Browse Menu",  description:"View full menu"},
+            {id:"exit",          title:"❌ Exit",           description:"Bye!"},
           ]
         }]
       );
@@ -487,7 +487,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("preSelectedOrderType");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from,"🚚 *Home Delivery selected!*\n\nBrowse our menu and add items to cart:");
+      await sendText(from,"🚚 *Home Delivery* — Add items to cart:");
       await showBrowseOptions(from);
       return;
     }
@@ -500,7 +500,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("preSelectedOrderType");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from,"🥡 *Take Away selected!*\n\nAdd items to your cart:");
+      await sendText(from,"🥡 *Take Away* — Add items to cart:");
       await showBrowseOptions(from);
       return;
     }
@@ -515,7 +515,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("deliveryData");
       session.markModified("cart");
       await session.save();
-      await sendText(from,"🍽️ *Dine In selected!*\n\nPlease fill your table booking details:");
+      await sendText(from,"🍽️ *Dine In* — Fill booking details:");
       await sendDeliveryFlow(from,"Table Booking",0);
       return;
     }
@@ -569,7 +569,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (["search","/search"].includes(input)) {
       session.state="SEARCHING";
       await session.save();
-      await sendText(from,"🔍 *Search Menu*\n\nType the dish name!\nExample: _chicken_, _biryani_, _naan_");
+      await sendText(from,"🔍 Type dish name to search\n_e.g. chicken, biryani, naan_");
       return;
     }
 
@@ -591,10 +591,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     // ── CONTACT ───────────────────────────────────────────
     if (["contact us","contact","/contact"].includes(input)) {
       await sendButtons(from,
-        `📞 *Kavi Chettinadu Restaurant*\n\n`+
-        `📍 14/12A1, Kattupillaiyar Kovil Street\nRameswaram - 623526\n\n`+
-        `📞 *95859 60612*\n📞 *95859 60613*\n\n`+
-        `⏰ Open: 12:00 PM – 10:30 PM\n\n🌐 kavirestaurant.in`,
+        `📞 *Kavi Chettinadu*\n📍 Rameswaram - 623526\n\n📞 95859 60612\n📞 95859 60613\n⏰ 12PM – 10:30PM\n🌐 kavirestaurant.in`,
         [{id:"VIEW_CATALOGUE",title:"🖼️ View Catalogue"},{id:"BROWSE_MENU",title:"📋 Browse Menu"},{id:"exit",title:"❌ Exit"}]
       );
       return;
@@ -872,7 +869,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
     // ── FALLBACK ──────────────────────────────────────────
     await sendButtons(from,
-      `🤔 I didn't understand that.\n\nSend *hi* to start ordering! 🍛`,
+      "🤔 Didn't get that. Send *hi* to start! 🍛",
       [{id:"hi",title:"🍴 Start Ordering"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"exit",title:"❌ Exit"}]
     );
 
