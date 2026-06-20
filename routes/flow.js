@@ -126,7 +126,7 @@ router.post("/endpoint", async (req, res) => {
 
       const sess = await getSessionData(phone);
       let cartSummary = "Table Booking", totalAmount = "Rs.0";
-      let preSelectedType = "", waName = "", waPhone = "";
+      let preSelectedType = "", waName = "", waPhone = "", liveLocation = "";
 
       if (sess) {
         if (sess.cart?.length > 0) {
@@ -136,6 +136,7 @@ router.post("/endpoint", async (req, res) => {
         preSelectedType = sess.preSelectedOrderType || "";
         waName  = sess.whatsappName || "";
         waPhone = phone?.replace(/^91/, "") || "";
+        liveLocation = sess.deliveryData?.live_location || "";
       }
 
       console.log(`📋 preSelected: ${preSelectedType} | cart: ${cartSummary} | name: ${waName}`);
