@@ -420,15 +420,19 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         session.deliveryData={
           live_location:address,
           live_location_coords:{lat:locationData.lat,lng:locationData.lng},
+          delivery_charge:dist.charge,
+          distance_info:`📍 Live (${dist.km}km)`,
         };
+        session.preSelectedOrderType = "delivery";
         session.markModified("deliveryData");
+        session.markModified("preSelectedOrderType");
         if (session.cart&&session.cart.length>0) {
           session.state="AWAITING_FLOW";
           await session.save();
           const cartSummary=buildCartSummary(session.cart);
           const total=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
           await sendText(from,`✅ *Location received!*\n📍 ${address}\n🚚 ~${dist.km}km | Delivery: Rs.${dist.charge}\n\nOpening order form...`);
-          await sendDeliveryFlow(from,cartSummary,total);
+          await sendDeliveryFlow(from,cartSummary,`Rs.${total}`,"delivery");
         } else {
           session.state="CATALOGUE";
           await session.save();
