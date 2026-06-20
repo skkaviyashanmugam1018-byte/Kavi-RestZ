@@ -316,23 +316,22 @@ router.post("/endpoint", async (req, res) => {
       // ── Bill text ────────────────────────────────────────
       const isDineIn = order_type === "dine_in";
       const billText =
-        (isDineIn ? `✅ *Table Booking Details*\n\n` : `🧾 *Order Summary*\n\n`) +
-        `👤 *Name:* ${customer_name}\n` +
-        `📞 *Phone:* ${customer_phone}\n` +
-        (alternate_phone ? `📞 *Alt:* ${alternate_phone}\n` : "") +
-        (!isDineIn ? `📍 *Address:* ${full_address}\n` : "") +
-        `🚚 *Type:* ${orderTypeLabel}${tableInfo}\n` +
-        (addonText ? `🍱 *Add-ons:* ${addonText}\n` : "") +
-        (special_instructions ? `📝 *Note:* ${special_instructions}\n` : "") +
-        `─────────────────\n` +
-        (cartTotal > 0 ? `🛒 *Items:*\n${itemsList}\n─────────────────\n` : "") +
-        (cartTotal > 0 ? `💰 *Food Total:* Rs.${cartTotal}\n` : "") +
-        (addonTotal > 0 ? `🍱 *Add-ons:* Rs.${addonTotal}\n` : "") +
-        (order_type === "delivery" ? `🚚 *Delivery:* ${delivLabel}\n` : "") +
-        `📊 *GST (${GST}%):* Rs.${gstAmount}\n` +
-        `─────────────────\n` +
-        `💰 *Grand Total: Rs.${grandTotal}*\n\n` +
-        `Choose payment method:`;
+        (isDineIn ? `🍽️ *Table Booking*\n` : `🧾 *Bill Summary*\n`) +
+        `👤 ${customer_name} | 📞 ${customer_phone}\n` +
+        (!isDineIn ? `📍 ${full_address}\n` : "") +
+        `${orderTypeLabel}${tableInfo}\n` +
+        (addonText ? `🍱 ${addonText}\n` : "") +
+        (special_instructions ? `📝 ${special_instructions}\n` : "") +
+        `─────────────` +
+        (cartTotal > 0 ? `\n${itemsList}` : "") +
+        `\n─────────────\n` +
+        (cartTotal > 0 ? `Food: Rs.${cartTotal}\n` : "") +
+        (addonTotal > 0 ? `Add-ons: Rs.${addonTotal}\n` : "") +
+        (order_type === "delivery" ? `Delivery: ${delivLabel}\n` : "") +
+        `GST: Rs.${gstAmount}\n` +
+        `─────────────\n` +
+        `💰 *Total: Rs.${grandTotal}*\n\n` +
+        `💳 Choose payment:`;
 
       // ── Payment buttons ──────────────────────────────────
       const payButtons =
