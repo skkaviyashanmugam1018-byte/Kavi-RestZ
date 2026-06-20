@@ -1,3 +1,4 @@
+
 const Session = require("../models/Session");
 const Order = require("../models/Order");
 const {
@@ -476,21 +477,27 @@ async function placeOrder(from, session) {
     paymentMethod==="PAY_UPI"  ? "UPI"  :
     paymentMethod==="PAY_REST" ? "Pay at Restaurant" : "Card";
 
+  const CELEBRATION_MAP = {
+    birthday:"🎂 Birthday Decoration", anniversary:"💑 Anniversary Setup",
+    cake:"🎂 Cake", flowers:"💐 Flowers", candle:"🕯️ Candle Dinner",
+    board:"🪧 Welcome Board", photo:"📸 Photography",
+  };
+  const SEATING_MAP = {
+    ac:"❄️ AC Hall", non_ac:"🌿 Non-AC",
+    family_hall:"👨‍👩‍👧 Family Hall", outdoor:"🌳 Outdoor",
+  };
   const celebAddons = session.deliveryData?.celebration_addons || [];
-  const celebText = celebAddons.length > 0
-    ? celebAddons.map(id => ({
-        birthday_decoration:"🎂 Birthday Decoration", anniversary:"💑 Anniversary",
-        cake_arrangement:"🎂 Cake", flower_bouquet:"💐 Flowers",
-        candle_dinner:"🕯️ Candle Dinner", welcome_board:"🪧 Welcome Board",
-        photography:"📸 Photography",
-      }[id]||id)).join(", ")
-    : "";
+  const celebText = celebAddons.map(id => CELEBRATION_MAP[id]||id).filter(Boolean).join(", ");
   const occasionName = session.deliveryData?.occasion_name || "";
+  const pickupDate = session.deliveryData?.pickup_date || "";
+  const seatingLabel = SEATING_MAP[table_seating] || table_seating || "";
   const tableInfo = order_type==="dine_in" && table_persons
-    ? `\n👥 Guests: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${table_seating==="ac"?"AC":"Non-AC"}` +
+    ? `\n👥 Guests: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${seatingLabel}` +
       (occasionName ? `\n🎉 Occasion: ${occasionName}` : "") +
       (celebText ? `\n🎊 Arrangements: ${celebText}` : "")
-    : order_type==="takeaway" ? `\n🕐 Pickup: ${pickup_time||"ASAP"}` : "";
+    : order_type==="takeaway"
+    ? `\n📅 Date: ${pickupDate} | 🕐 Pickup: ${pickup_time||"ASAP"}`
+    : "";
 
   const allItems = [
     ...session.cart.map(i => ({name:i.name, price:i.price, quantity:i.qty})),
