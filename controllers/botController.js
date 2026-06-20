@@ -686,7 +686,8 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.state="AWAITING_FLOW";await session.save();
       const cartSummary=buildCartSummary(session.cart);
       const total=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
-      await sendDeliveryFlow(from,cartSummary,total);
+      const pType=session.preSelectedOrderType||"";
+      await sendDeliveryFlow(from,cartSummary,`Rs.${total}`,pType);
       return;
     }
 
