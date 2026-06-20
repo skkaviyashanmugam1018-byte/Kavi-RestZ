@@ -110,42 +110,80 @@ router.post("/endpoint", async (req, res) => {
     const phone = tokenParts.length >= 2 ? tokenParts[1] : null;
     console.log(`📞 Phone: ${phone}`);
  
-    // ✅ INIT — fetch cart + session data
+    // ✅ INIT — jump directly to correct screen based on pre-selected order type
     if (action === "INIT" || (action === "navigate" && (!screen || screen === ""))) {
-      console.log("📋 INIT → ORDER_TYPE");
-      let cartSummary = "", totalAmount = "Rs.0", initValues = {}, preSelectedType = "";
+      console.log("📋 INIT");
+      let cartSummary = "Table Booking", totalAmount = "Rs.0";
+      let preSelectedType = "", waName = "", waPhone = "";
+      let liveLocation = "";
  
       if (phone) {
         try {
           const sess = await Session.findOne({ phoneNumber: phone });
           if (sess) {
-            // Cart summary
             if (sess.cart?.length > 0) {
               cartSummary = sess.cart.map(i => `${i.name} x${i.qty}`).join(", ");
               const total = sess.cart.reduce((s, i) => s + i.price * i.qty, 0);
               totalAmount = `Rs.${total}`;
-            } else {
-              cartSummary = "Table Booking";
             }
-            // Pre-fill name, phone, order type
             preSelectedType = sess.preSelectedOrderType || "";
-            initValues = {
-              ...(sess.whatsappName ? { customer_name: sess.whatsappName } : {}),
-              customer_phone: phone.replace(/^91/, ""),
-              ...(preSelectedType ? { order_type: preSelectedType } : {}),
-            };
+            waName   = sess.whatsappName || "";
+            waPhone  = phone.replace(/^91/, "");
+            liveLocation = sess.deliveryData?.live_location || "";
           }
         } catch (e) { console.error("Session fetch error:", e.message); }
       }
  
       console.log(`📋 INIT | preSelected: ${preSelectedType} | cart: ${cartSummary}`);
+ 
+      // ✅ Jump directly to correct screen — skip ORDER_TYPE
+      if (preSelectedType === "dine_in") {
+        return res.status(200).send(encryptResponse({
+          screen: "DINE_DETAILS",
+          data: {
+            order_type: "dine_in",
+            cart_summary: cartSummary,
+            total_amount: totalAmount,
+          },
+        }, aesKey, iv));
+      }
+ 
+      if (preSelectedType === "takeaway") {
+        return res.status(200).send(encryptResponse({
+          screen: "TAKEAWAY_DETAILS",
+          data: {
+            order_type: "takeaway",
+            cart_summary: cartSummary,
+            total_amount: totalAmount,
+          },
+        }, aesKey, iv));
+      }
+ 
+      if (preSelectedType === "delivery") {
+        return res.status(200).send(encryptResponse({
+          screen: "DELIVERY_DETAILS",
+          data: {
+            order_type: "delivery",
+            cart_summary: cartSummary,
+            total_amount: totalAmount,
+            live_location_address: liveLocation,
+            customer_name_prefill: waName,
+            customer_phone_prefill: waPhone,
+          },
+        }, aesKey, iv));
+      }
+ 
+      // Fallback — show ORDER_TYPE if no pre-selection
       return res.status(200).send(encryptResponse({
         screen: "ORDER_TYPE",
         data: {
           cart_summary:   cartSummary,
           total_amount:   totalAmount,
           error_messages: {},
-          init_values:    initValues,
+          init_values:    {
+            ...(waName ? { customer_name: waName } : {}),
+            customer_phone: waPhone,
+          },
         },
       }, aesKey, iv));
     }
