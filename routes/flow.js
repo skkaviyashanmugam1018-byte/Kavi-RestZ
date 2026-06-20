@@ -211,13 +211,18 @@ router.post("/endpoint", async (req, res) => {
 
       const {
         order_type,
-        customer_name, customer_phone, alternate_phone,
         delivery_address, pincode,
         selected_addons, special_instructions,
         table_persons, table_date, table_time, table_seating,
         celebration_addons, occasion_name,
         pickup_date, pickup_time,
       } = data;
+
+      // Auto-fill name/phone from WhatsApp session
+      const sess2 = await getSessionData(phone);
+      const customer_name  = sess2?.whatsappName || "Customer";
+      const customer_phone = phone?.replace(/^91/, "") || "";
+      const alternate_phone = "";
 
       // ── Delivery charge ──────────────────────────────────
       let deliveryCharge = 0, distanceInfo = "";
