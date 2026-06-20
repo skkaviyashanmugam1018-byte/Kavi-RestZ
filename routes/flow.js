@@ -63,13 +63,13 @@ const SEATING_MAP = {
   outdoor:     "🌳 Outdoor",
 };
 const CELEBRATION_MAP = {
-  birthday:    "🎂 Birthday Decoration",
-  anniversary: "💑 Anniversary Setup",
-  cake:        "🎂 Cake Arrangement",
-  flowers:     "💐 Flower Bouquet",
-  candle:      "🕯️ Candle Light Dinner",
-  board:       "🪧 Welcome Name Board",
-  photo:       "📸 Photography",
+  birthday:    { name: "🎂 Birthday Decoration",  price: 299 },
+  anniversary: { name: "💑 Anniversary Setup",     price: 349 },
+  cake:        { name: "🎂 Cake Arrangement",       price: 499 },
+  flowers:     { name: "💐 Flower Bouquet",         price: 199 },
+  candle:      { name: "🕯️ Candle Light Dinner",   price: 249 },
+  board:       { name: "🪧 Welcome Name Board",     price: 149 },
+  photo:       { name: "📸 Photography",            price: 599 },
 };
 
 // ── Helper: get session data ──────────────────────────────
@@ -258,14 +258,20 @@ router.post("/endpoint", async (req, res) => {
       const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
       const addonItems = addonList.map(id => ADDON_PRICES[id]).filter(Boolean);
       const addonTotal = addonItems.reduce((s, a) => s + a.price, 0);
-      const subtotal   = cartTotal + addonTotal + deliveryCharge;
+      const celebList   = (Array.isArray(celebration_addons) ? celebration_addons : [])
+        .map(id => CELEBRATION_MAP[id]).filter(Boolean);
+      const celebTotal  = celebList.reduce((s, c) => s + c.price, 0);
+      const celebText   = celebList.map(c => `${c.name} (Rs.${c.price})`).join(", ");
+      const seatLabel   = SEATING_MAP[table_seating] || table_seating || "";
+      const subtotal   = cartTotal + addonTotal + celebTotal + deliveryCharge;
       const gstAmount  = Math.round(subtotal * GST / 100);
-      const grandTotal = subtotal + gstAmount;
+      // Dine In: minimum booking amount Rs.500
+      const rawTotal   = subtotal + gstAmount;
+      const grandTotal = order_type === "dine_in" ? Math.max(rawTotal, 500) : rawTotal;
+      const advanceNote = order_type === "dine_in" && rawTotal < 500
+        ? "\n💡 *Minimum advance booking: Rs.500*" : "";
 
-      const seatLabel  = SEATING_MAP[table_seating]  || table_seating || "";
-      const celebText  = (Array.isArray(celebration_addons) ? celebration_addons : [])
-        .map(id => CELEBRATION_MAP[id] || id).filter(Boolean).join(", ");
-      const addonText  = addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ");
+      const addonText   = addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ");
       const itemsList  = session.cart.map(i => `• ${i.name} × ${i.qty} = Rs.${i.price * i.qty}`).join("\n");
 
       const orderTypeLabel =
