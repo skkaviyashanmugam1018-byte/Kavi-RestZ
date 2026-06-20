@@ -143,6 +143,7 @@ router.post("/endpoint", async (req, res) => {
       const initValues = {
         customer_name:  waName  || "",
         customer_phone: waPhone || "",
+        order_type:     preSelectedType || "delivery",
       };
 
       // ✅ Jump directly — no ORDER_TYPE shown to user
