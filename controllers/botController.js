@@ -1,4 +1,3 @@
-
 const Session = require("../models/Session");
 const Order = require("../models/Order");
 const {
@@ -6,10 +5,10 @@ const {
   sendCatalogueMessage, sendDeliveryFlow,
 } = require("../config/whatsapp");
 const { getChargeFromPincode, getChargeFromLocation } = require("../config/distanceHelper");
- 
+
 const LOGO_URL = "https://res.cloudinary.com/dxfphwvnf/image/upload/v1781880045/1002297751_u94hqe.jpg";
 const t24 = (str) => (str && str.length > 24 ? str.substring(0, 21) + "..." : str || "");
- 
+
 // ═══════════════════════════════════════════════════════════
 // CATALOGUE PRICE MAP
 // ═══════════════════════════════════════════════════════════
@@ -92,7 +91,7 @@ const CATALOGUE_PRICE_MAP = {
   EGG005:{name:"Boiled Egg 2pcs",price:40},EGG006:{name:"Masala Kalakki",price:30},
   EGG007:{name:"Egg Burji",price:70},EGG008:{name:"Egg Masala",price:120},
 };
- 
+
 const MENU = {
   soup:          {label:"🍲 Soup",items:[{id:"hot_sour_veg_soup",name:"Hot & Sour Veg Soup",price:80},{id:"sweet_corn_veg_soup",name:"Sweet Corn Veg Soup",price:80},{id:"veg_clear_soup",name:"Veg Clear Soup",price:80},{id:"crab_soup",name:"Crab Soup",price:120},{id:"chicken_clear_soup",name:"Chicken Clear Soup",price:100}]},
   starters:      {label:"🍢 Starters",items:[{id:"french_fries",name:"French Fries",price:120},{id:"gobi_65",name:"Gobi 65",price:150},{id:"mushroom_65",name:"Mushroom 65",price:150},{id:"paneer_tikka",name:"Paneer Tikka",price:160},{id:"chilly_chicken_bl",name:"Chilly Chicken (BL)",price:200},{id:"chicken_tikka",name:"Chicken Tikka",price:180},{id:"chicken_65_bl",name:"Chicken 65 (Boneless)",price:200},{id:"chicken_65_wb",name:"Chicken 65 (With Bone)",price:170},{id:"honey_chicken",name:"Honey Chicken",price:220},{id:"chicken_lollipop",name:"Chicken Lollipop 5pcs",price:200},{id:"dragon_chicken",name:"Dragon Chicken",price:200},{id:"chicken_kola_urundai",name:"Chicken Kola Urundai",price:160},{id:"alfaham_chicken",name:"Alfaham Chicken",price:200}]},
@@ -111,12 +110,12 @@ const MENU = {
   meals:         {label:"🍽️ Meals",items:[{id:"veg_meals",name:"Veg Meals",price:120},{id:"non_veg_meals",name:"Non Veg Meals",price:140}]},
   eggies:        {label:"🥚 Eggies",items:[{id:"omelette",name:"Omelette",price:25},{id:"double_omelette",name:"Double Omelette",price:50},{id:"half_boil",name:"Half Boil",price:20},{id:"full_boil",name:"Full Boil",price:20},{id:"boiled_egg",name:"Boiled Egg 2pcs",price:40},{id:"masala_kalakki",name:"Masala Kalakki",price:30},{id:"egg_burji",name:"Egg Burji",price:70},{id:"egg_masala",name:"Egg Masala",price:120}]},
 };
- 
+
 const ALL_ITEMS = [];
 for (const [catKey,cat] of Object.entries(MENU)) {
   for (const item of cat.items) ALL_ITEMS.push({...item,catKey,catLabel:cat.label});
 }
- 
+
 function findItem(id) {
   for (const cat of Object.values(MENU)) {
     const item = cat.items.find(i=>i.id===id);
@@ -124,14 +123,14 @@ function findItem(id) {
   }
   return null;
 }
- 
+
 function normalizeQuery(str) {
   return str.toLowerCase().trim()
     .replace(/biryani|briyani|bryani/g,"biriyani")
     .replace(/noodle$/g,"noodles").replace(/prawn$/g,"prawns")
     .replace(/chiken/g,"chicken").replace(/muttan/g,"mutton");
 }
- 
+
 function searchItems(query) {
   const q = normalizeQuery(query);
   return ALL_ITEMS.filter(item => {
@@ -141,7 +140,7 @@ function searchItems(query) {
     return name.includes(q)||cat.includes(q)||words.some(w=>name.includes(w));
   }).slice(0,9);
 }
- 
+
 function buildCartMsg(cart) {
   if (!cart||cart.length===0) return "🛒 Your cart is empty!";
   let msg = "🛒 *Your Cart*\n─────────────────\n";
@@ -152,16 +151,16 @@ function buildCartMsg(cart) {
   msg += `─────────────────\n💰 *Total: Rs.${total}*`;
   return msg;
 }
- 
+
 function buildCartSummary(cart) {
   return cart.map(i=>`${i.name} x${i.qty}`).join(", ");
 }
- 
+
 function normalizePhone(phone) {
   const c = (phone||"").replace(/^\+?91/,"").replace(/\D/g,"").slice(-10);
   return c.length===10?c:"9999999999";
 }
- 
+
 const GST_PERCENT = 5;
 const ADDON_PRICES_MAP = {
   raita:{name:"Raita",price:30},pickle:{name:"Pickle",price:20},
@@ -177,7 +176,7 @@ const CELEBRATION_MAP = {
 const SEATING_MAP = {
   ac:"❄️ AC Hall",non_ac:"🌿 Non-AC",family_hall:"👨‍👩‍👧 Family Hall",outdoor:"🌳 Outdoor",
 };
- 
+
 // ═══════════════════════════════════════════════════════════
 // SEND WELCOME
 // ═══════════════════════════════════════════════════════════
@@ -191,7 +190,7 @@ async function sendWelcome(to, name="") {
     [{id:"GET_STARTED",title:"🍴 Get Started"}]
   );
 }
- 
+
 // ── Menu helpers ──────────────────────────────────────────
 async function sendMainMenu(to, page=0) {
   const allCats = Object.entries(MENU);
@@ -203,7 +202,7 @@ async function sendMainMenu(to, page=0) {
   if (page>0)  rows.push({id:`MENU_PAGE_${page-1}`,title:"⬅️ Previous",description:"Go back"});
   await sendList(to,"🍽️ Kavi Chettinadu","Select a category:","Browse Menu",[{title:"Menu Categories",rows}]);
 }
- 
+
 async function sendCategoryItems(to, catKey, page=0) {
   const cat=MENU[catKey]; if (!cat) return;
   const PAGE_SIZE=9, start=page*PAGE_SIZE;
@@ -214,7 +213,7 @@ async function sendCategoryItems(to, catKey, page=0) {
   if (page>0)  rows.push({id:`MORE_${catKey}_${page-1}`,title:"⬅️ Previous",description:"Go back"});
   await sendList(to,t24(cat.label),"Select an item:","Choose Item",[{title:t24(cat.label),rows}]);
 }
- 
+
 async function sendQuantitySelect(to, item) {
   await sendText(to,`*${item.name}*\n💰 Price: Rs.${item.price}\n\n📝 *Enter quantity:*\nType a number and send!`);
   await sendButtons(to,"Or tap quick option:",[
@@ -223,7 +222,7 @@ async function sendQuantitySelect(to, item) {
     {id:`QTY_3___${item.id}`,title:"3️⃣  Qty: 3"},
   ]);
 }
- 
+
 async function sendAfterAddToCart(to, cart) {
   const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
   await sendButtons(to,
@@ -231,7 +230,7 @@ async function sendAfterAddToCart(to, cart) {
     [{id:"ADD_MORE",title:"➕ Add More"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"PLACE_ORDER",title:"✅ Place Order"}]
   );
 }
- 
+
 async function generateRazorpayLink(session, from, type="upi") {
   const total=session.deliveryData?.grand_total||0;
   const expiry=type==="upi"?1800:3600;
@@ -253,7 +252,7 @@ async function generateRazorpayLink(session, from, type="upi") {
     return null;
   }
 }
- 
+
 // ═══════════════════════════════════════════════════════════
 // PLACE ORDER
 // ═══════════════════════════════════════════════════════════
@@ -264,7 +263,7 @@ async function placeOrder(from, session) {
     ]);
     return;
   }
- 
+
   const {
     name,phone,alternate_phone,address,order_type,paymentMethod,
     addons,addon_total,delivery_charge,gst_amount,grand_total,
@@ -272,7 +271,7 @@ async function placeOrder(from, session) {
     pickup_date,pickup_time,special_instructions,
     celebration_addons,occasion_name,distance_info,
   } = session.deliveryData;
- 
+
   const cartTotal  = session.cart.reduce((s,i)=>s+i.price*i.qty,0);
   const addonItems = (addons||[]).map(a=>({name:a.name,price:a.price,quantity:1}));
   const addonTotal = addon_total||0;
@@ -281,19 +280,19 @@ async function placeOrder(from, session) {
   const gst        = gst_amount??0;
   const finalTotal = grand_total||(cartTotal+addonTotal+delCharge+gst);
   const orderId    = "KAV"+Date.now();
- 
+
   const orderTypeLabel =
     order_type==="delivery"?"🚚 Home Delivery":
     order_type==="takeaway"?"🥡 Take Away":"🍽️ Dine In";
- 
+
   const payLabel =
     paymentMethod==="PAY_COD" ?"Cash on Delivery":
     paymentMethod==="PAY_UPI" ?"UPI":
     paymentMethod==="PAY_REST"?"Pay at Restaurant":"Card";
- 
+
   const celebText = (celebration_addons||[]).map(id=>CELEBRATION_MAP[id]||id).filter(Boolean).join(", ");
   const seatLabel = SEATING_MAP[table_seating]||table_seating||"";
- 
+
   const tableInfo =
     order_type==="dine_in"&&table_persons
       ? `\n👥 Guests: ${table_persons} | 📅 ${table_date} | 🕐 ${table_time} | 🪑 ${seatLabel}`+
@@ -302,12 +301,12 @@ async function placeOrder(from, session) {
       : order_type==="takeaway"
       ? `\n📅 Date: ${pickup_date||""} | 🕐 Pickup: ${pickup_time||"ASAP"}`
       : "";
- 
+
   const allItems=[
     ...session.cart.map(i=>({name:i.name,price:i.price,quantity:i.qty})),
     ...addonItems,
   ];
- 
+
   const newOrder=new Order({
     orderId,phone:phone||from,name:name||"Customer",
     address:address||orderTypeLabel,items:allItems,
@@ -317,15 +316,15 @@ async function placeOrder(from, session) {
   });
   await newOrder.save();
   console.log(`✅ Order: ${orderId} | Total: Rs.${finalTotal}`);
- 
+
   session.cart=[];session.deliveryData={};session.deliveryStep=null;
   session.preSelectedOrderType=null;session.state="WELCOME";
   session.markModified("cart");session.markModified("deliveryData");
   await session.save();
- 
+
   const itemsList=allItems.map(i=>`• ${i.name} × ${i.quantity} = Rs.${i.price*i.quantity}`).join("\n");
   const delivLabel=isDelivery?`Rs.${delCharge} (${distance_info||""})` :"Free";
- 
+
   await sendButtons(from,
     `🎉 *Order Placed Successfully!*\n\n`+
     `📋 *Order ID:* #${orderId}\n`+
@@ -347,7 +346,7 @@ async function placeOrder(from, session) {
     [{id:"VIEW_CATALOGUE",title:"🔄 Order Again"},{id:"exit",title:"❌ Exit"}]
   );
 }
- 
+
 async function handleCatalogueOrder(from, session, catalogueOrder) {
   const items=catalogueOrder?.product_items||[];
   for (const item of items) {
@@ -365,7 +364,7 @@ async function handleCatalogueOrder(from, session, catalogueOrder) {
     [{id:"PLACE_ORDER",title:"✅ Place Order"},{id:"VIEW_CATALOGUE",title:"🖼️ More Items"},{id:"CLEAR_CART",title:"🗑️ Clear Cart"}]
   );
 }
- 
+
 // ═══════════════════════════════════════════════════════════
 // BROWSE MENU HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -375,7 +374,7 @@ async function showBrowseOptions(from) {
     [{id:"VIEW_CATALOGUE",title:"🖼️ View Catalogue"},{id:"BROWSE_MENU",title:"📋 Browse Menu"},{id:"search",title:"🔍 Search Dish"}]
   );
 }
- 
+
 // ═══════════════════════════════════════════════════════════
 // MAIN HANDLER
 // ═══════════════════════════════════════════════════════════
@@ -389,21 +388,21 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (!session.cart) session.cart=[];
     if (!session.deliveryData) session.deliveryData={};
     session.lastActivity=new Date();
- 
+
     // Save WhatsApp name
     if (contactName&&!session.whatsappName) {
       session.whatsappName=contactName;
       session.markModified("whatsappName");
       await session.save();
     }
- 
+
     const input    = interactiveReply?.id||messageBody?.trim()?.toLowerCase();
     const rawInput = messageBody?.trim();
     console.log(`📥 From: ${from} | Input: ${input} | State: ${session.state}`);
- 
+
     // ── CATALOGUE ORDER ───────────────────────────────────
     if (catalogueOrder) {await handleCatalogueOrder(from,session,catalogueOrder);return;}
- 
+
     // ── LOCATION SHARED ───────────────────────────────────
     if (locationData) {
       const mapsUrl=`https://maps.google.com/?q=${locationData.lat},${locationData.lng}`;
@@ -433,7 +432,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       }
       return;
     }
- 
+
     // ── EXIT ──────────────────────────────────────────────
     if (["exit","bye","quit"].includes(input)) {
       session.state="WELCOME";session.cart=[];session.deliveryData={};
@@ -443,7 +442,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await sendText(from,"👋 *Thank you for visiting Kavi Chettinadu Restaurant!*\n\nSend *hi* anytime to order again. 🍛");
       return;
     }
- 
+
     // ── GREETING ──────────────────────────────────────────
     if (["hi","hello","hey","start","menu","/menu","/start"].includes(input)) {
       session.state="MAIN_MENU";session.cart=[];session.deliveryData={};
@@ -453,7 +452,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await sendWelcome(from,session.whatsappName||contactName||"");
       return;
     }
- 
+
     // ── GET STARTED ───────────────────────────────────────
     if (input==="GET_STARTED"||input==="EXPLORE_MENUS") {
       session.state="MAIN_MENU";
@@ -475,34 +474,24 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       );
       return;
     }
- 
+
     // ══════════════════════════════════════════════════════
     // ORDER TYPE HANDLERS
     // ══════════════════════════════════════════════════════
- 
-    // ── 🚚 HOME DELIVERY → location first ────────────────
+
+    // ── 🚚 HOME DELIVERY → catalogue first, details in flow ─
     if (input==="ORDER_DELIVERY") {
       session.preSelectedOrderType="delivery";
-      session.state="AWAITING_LOCATION_CHOICE";
+      session.state="CATALOGUE";
       session.deliveryData={};
       session.markModified("preSelectedOrderType");
       session.markModified("deliveryData");
       await session.save();
-      await sendList(from,
-        "📍 Delivery Location",
-        "How would you like to share your delivery address?",
-        "Choose",
-        [{
-          title:"Address Options",
-          rows:[
-            {id:"SHARE_LOCATION",title:"📍 Share Live Location",description:"Auto-calculate delivery charge"},
-            {id:"SKIP_LOCATION", title:"✏️ Enter Address Manually",description:"Type address in the form"},
-          ]
-        }]
-      );
+      await sendText(from,"🚚 *Home Delivery selected!*\n\nBrowse our menu and add items to cart:");
+      await showBrowseOptions(from);
       return;
     }
- 
+
     // ── 🥡 TAKEAWAY → browse menu first ──────────────────
     if (input==="ORDER_TAKEAWAY") {
       session.preSelectedOrderType="takeaway";
@@ -515,7 +504,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await showBrowseOptions(from);
       return;
     }
- 
+
     // ── 🍽️ DINE IN → flow directly (NO browse needed) ────
     if (input==="ORDER_DINEIN") {
       session.preSelectedOrderType="dine_in";
@@ -530,7 +519,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await sendDeliveryFlow(from,"Table Booking",0);
       return;
     }
- 
+
     // ── 📍 SHARE LOCATION ────────────────────────────────
     if (input==="SHARE_LOCATION") {
       session.state="AWAITING_LOCATION";
@@ -545,7 +534,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       ]);
       return;
     }
- 
+
     // ── ✏️ SKIP LOCATION → manual address in form ────────
     if (input==="SKIP_LOCATION") {
       session.deliveryData={...session.deliveryData,live_location:""};
@@ -566,7 +555,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       }
       return;
     }
- 
+
     // ── VIEW CATALOGUE ────────────────────────────────────
     if (input==="VIEW_CATALOGUE") {
       session.state="CATALOGUE";
@@ -575,7 +564,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       if (!sent) {session.state="CATEGORY_SELECT";await session.save();await sendMainMenu(from,0);}
       return;
     }
- 
+
     // ── SEARCH ────────────────────────────────────────────
     if (["search","/search"].includes(input)) {
       session.state="SEARCHING";
@@ -583,7 +572,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await sendText(from,"🔍 *Search Menu*\n\nType the dish name!\nExample: _chicken_, _biryani_, _naan_");
       return;
     }
- 
+
     if (session.state==="SEARCHING"&&rawInput&&!rawInput.startsWith("/")&&input!=="__FLOW_COMPLETE__") {
       const results=searchItems(rawInput);
       if (results.length===0) {
@@ -598,7 +587,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.state="ITEM_SELECT";await session.save();
       return;
     }
- 
+
     // ── CONTACT ───────────────────────────────────────────
     if (["contact us","contact","/contact"].includes(input)) {
       await sendButtons(from,
@@ -610,7 +599,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       );
       return;
     }
- 
+
     // ── BROWSE MENU ───────────────────────────────────────
     if (["BROWSE_MENU","ADD_MORE","MAIN_MENU","browse_menu"].includes(input)) {
       session.state="CATEGORY_SELECT";await session.save();await sendMainMenu(from,0);return;
@@ -619,7 +608,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       const page=parseInt(input.replace("MENU_PAGE_",""));
       session.state="CATEGORY_SELECT";await session.save();await sendMainMenu(from,page);return;
     }
- 
+
     // ── CATEGORY ──────────────────────────────────────────
     if (input?.startsWith("CAT_")) {
       const catKey=input.replace("CAT_","");
@@ -632,7 +621,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       const catKey=parts.slice(1,parts.length-1).join("_");
       session.currentCategory=catKey;await session.save();await sendCategoryItems(from,catKey,page);return;
     }
- 
+
     // ── ITEM SELECT ───────────────────────────────────────
     if (input?.startsWith("ITEM_")) {
       const itemId=input.replace("ITEM_","");
@@ -642,7 +631,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.state="QUANTITY_SELECT";session.markModified("pendingItem");
       await session.save();await sendQuantitySelect(from,item);return;
     }
- 
+
     // ── MANUAL QUANTITY ───────────────────────────────────
     if (session.state==="QUANTITY_SELECT"&&session.pendingItem&&rawInput&&/^\d+$/.test(rawInput)) {
       const qty=parseInt(rawInput);
@@ -654,7 +643,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.pendingItem=null;session.state="CART";session.markModified("cart");
       await session.save();await sendAfterAddToCart(from,session.cart);return;
     }
- 
+
     // ── QTY BUTTON ────────────────────────────────────────
     if (input?.startsWith("QTY_")) {
       const wp=input.replace("QTY_","");
@@ -669,7 +658,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.pendingItem=null;session.state="CART";session.markModified("cart");
       await session.save();await sendAfterAddToCart(from,session.cart);return;
     }
- 
+
     // ── VIEW CART ─────────────────────────────────────────
     if (["VIEW_CART","/cart"].includes(input)) {
       const cartMsg=buildCartMsg(session.cart);
@@ -680,53 +669,27 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       }
       return;
     }
- 
+
     // ── CLEAR CART ────────────────────────────────────────
     if (input==="CLEAR_CART") {
       session.cart=[];session.markModified("cart");await session.save();
       await sendButtons(from,"🗑️ Cart cleared!",[{id:"VIEW_CATALOGUE",title:"🖼️ View Catalogue"},{id:"BROWSE_MENU",title:"📋 Browse Menu"}]);
       return;
     }
- 
-    // ── PLACE ORDER ───────────────────────────────────────
+
+    // ── PLACE ORDER → open flow directly ────────────────
     if (["PLACE_ORDER","PLACE_ORDER_FLOW","/order"].includes(input)) {
       if (!session.cart||session.cart.length===0) {
         await sendButtons(from,"❌ Your cart is empty!",[{id:"VIEW_CATALOGUE",title:"🖼️ View Catalogue"},{id:"BROWSE_MENU",title:"📋 Browse Menu"}]);
         return;
       }
-      const preSelected=session.preSelectedOrderType;
-      console.log(`🎯 PLACE_ORDER | preSelected: ${preSelected}`);
- 
-      if (preSelected==="delivery") {
-        // Check if location already shared
-        if (session.deliveryData?.live_location) {
-          // Location shared → open flow
-          session.state="AWAITING_FLOW";await session.save();
-          await sendDeliveryFlow(from,buildCartSummary(session.cart),session.cart.reduce((s,i)=>s+i.price*i.qty,0));
-        } else {
-          // Ask location again
-          session.state="AWAITING_LOCATION_CHOICE";await session.save();
-          await sendList(from,
-            "📍 Delivery Location",
-            "Share your delivery address:",
-            "Choose",
-            [{title:"Address Options",rows:[
-              {id:"SHARE_LOCATION",title:"📍 Share Live Location",description:"Auto-calculate charge"},
-              {id:"SKIP_LOCATION", title:"✏️ Type Address Manually",description:"Enter in form"},
-            ]}]
-          );
-        }
-        return;
-      }
- 
-      // Takeaway / Dine In / no pre-selection → flow
       session.state="AWAITING_FLOW";await session.save();
       const cartSummary=buildCartSummary(session.cart);
       const total=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
       await sendDeliveryFlow(from,cartSummary,total);
       return;
     }
- 
+
     // ── FLOW COMPLETE ─────────────────────────────────────
     if (input==="__FLOW_COMPLETE__") {
       if (session.state!=="AWAITING_FLOW") {
@@ -735,7 +698,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       }
       const flowData=interactiveReply?.flowData||{};
       console.log("✅ Flow complete:",JSON.stringify(flowData,null,2));
- 
+
       const {
         order_type,customer_name,customer_phone,alternate_phone,
         delivery_address,pincode,live_location_address,
@@ -743,7 +706,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         table_persons,table_date,table_time,table_seating,
         celebration_addons,occasion_name,pickup_date,pickup_time,
       } = flowData;
- 
+
       // Delivery charge
       let deliveryCharge=0,distanceInfo="";
       if (order_type==="delivery") {
@@ -760,7 +723,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         }
         deliveryCharge=distResult.charge;
       }
- 
+
       const liveAddr=live_location_address||session.deliveryData?.live_location||"";
       const full_address=
         order_type==="delivery"
@@ -770,7 +733,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           : order_type==="takeaway"
           ? `Take Away | ${pickup_date||""} ${pickup_time||"ASAP"}`
           : "Dine In";
- 
+
       const cartTotal=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
       const addonList=Array.isArray(selected_addons)?selected_addons:[];
       const addonItems=addonList.map(id=>ADDON_PRICES_MAP[id]).filter(Boolean);
@@ -778,14 +741,14 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       const subtotal=cartTotal+addonTotal+deliveryCharge;
       const gstAmount=Math.round(subtotal*GST_PERCENT/100);
       const grandTotal=subtotal+gstAmount;
- 
+
       const orderTypeLabel=order_type==="delivery"?"🚚 Home Delivery":order_type==="takeaway"?"🥡 Take Away":"🍽️ Dine In";
       const delivLabel=order_type==="delivery"?`Rs.${deliveryCharge} (${distanceInfo})`:"Free";
       const addonText=addonItems.map(a=>`${a.name} (Rs.${a.price})`).join(", ");
       const celebText=(Array.isArray(celebration_addons)?celebration_addons:[]).map(id=>CELEBRATION_MAP[id]||id).filter(Boolean).join(", ");
       const seatLabel=SEATING_MAP[table_seating]||table_seating||"";
       const itemsList=session.cart.map(i=>`• ${i.name} × ${i.qty} = Rs.${i.price*i.qty}`).join("\n");
- 
+
       const tableInfo=
         order_type==="dine_in"&&table_persons
           ? `\n👥 *Guests:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Slot:* ${table_time}\n🪑 *Seating:* ${seatLabel}`+
@@ -794,7 +757,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           : order_type==="takeaway"
           ? `\n📅 *Date:* ${pickup_date||""}\n🕐 *Pickup:* ${pickup_time||"ASAP"}`
           : "";
- 
+
       session.deliveryData={
         name:customer_name||"Customer",phone:customer_phone||from,
         alternate_phone:alternate_phone||"",address:full_address,
@@ -812,7 +775,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.state="PAYMENT_SELECT";session.markModified("deliveryData");
       await session.save();
       console.log(`✅ Session saved | Grand Total: Rs.${grandTotal}`);
- 
+
       const isDineIn=order_type==="dine_in";
       const billText=
         (isDineIn?`✅ *Table Booking Confirmed!*\n\n`:`🧾 *Order Bill Summary*\n\n`)+
@@ -832,7 +795,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         `─────────────────\n`+
         `💰 *Grand Total: Rs.${grandTotal}*\n\n`+
         `Select payment method:`;
- 
+
       await sendButtons(from,billText,
         order_type==="dine_in"?[
           {id:"PAY_REST",title:"🍽️ Pay at Restaurant"},
@@ -850,7 +813,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       );
       return;
     }
- 
+
     // ── PAYMENT ───────────────────────────────────────────
     if (["PAY_COD","PAY_UPI","PAY_CARD","PAY_REST"].includes(input)) {
       if (!session.deliveryData?.grand_total) {
@@ -858,7 +821,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         return;
       }
       session.deliveryData.paymentMethod=input;session.markModified("deliveryData");await session.save();
- 
+
       if (input==="PAY_UPI") {
         const total=session.deliveryData.grand_total;
         const link=await generateRazorpayLink(session,from,"upi");
@@ -871,7 +834,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         await sendButtons(from,"✅ Completed the payment?",[{id:"UPI_DONE",title:"✅ Payment Done"},{id:"PAY_COD",title:"💵 Pay COD instead"}]);
         return;
       }
- 
+
       if (input==="PAY_CARD") {
         const total=session.deliveryData.grand_total;
         const link=await generateRazorpayLink(session,from,"card");
@@ -884,28 +847,27 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         }
         return;
       }
- 
+
       await placeOrder(from,session);return;
     }
- 
+
     // ── UPI DONE ──────────────────────────────────────────
     if (input==="UPI_DONE") {
       session.deliveryData.paymentMethod=session.deliveryData.paymentMethod||"PAY_UPI";
       session.markModified("deliveryData");await session.save();
       await placeOrder(from,session);return;
     }
- 
+
     // ── FALLBACK ──────────────────────────────────────────
     await sendButtons(from,
       `🤔 I didn't understand that.\n\nSend *hi* to start ordering! 🍛`,
       [{id:"hi",title:"🍴 Start Ordering"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"exit",title:"❌ Exit"}]
     );
- 
+
   } catch(err) {
     console.error("❌ handleMessage Error:",err.message);
     if (err.response?.data) console.error(JSON.stringify(err.response.data,null,2));
   }
 };
- 
+
 module.exports = {handleMessage,placeOrder};
- 
