@@ -58,9 +58,9 @@ const ADDON_PRICES = {
 const SEATING_MAP = {
   ac:          "❄️ AC Hall",
   non_ac:      "🌿 Non-AC",
-  vip:         "👑 VIP Section",
-  indoor:      "🏠 Indoor",
+  family_hall: "👨‍👩‍👧 Family Hall",
   outdoor:     "🌳 Outdoor",
+  vip:         "👑 VIP",
 };
 const CELEBRATION_MAP = {
   birthday:    { name: "🎂 Birthday Decoration",  price: 299 },
@@ -155,20 +155,38 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
       if (preSelectedType === "delivery") {
-        // If live location shared → DELIVERY_DETAILS_LIVE (address optional)
-        // Else → DELIVERY_DETAILS (address required)
         const hasLiveLocation = liveLocation && liveLocation.length > 0;
-        const deliveryScreen = hasLiveLocation ? "DELIVERY_DETAILS_LIVE" : "DELIVERY_DETAILS";
-        console.log(`📋 Delivery screen: ${deliveryScreen} | live: ${hasLiveLocation}`);
+        console.log(`📋 Delivery | live: ${hasLiveLocation} | cart: ${cartSummary}`);
+
+        if (hasLiveLocation) {
+          // ✅ Live location already shared → skip address form → go to DELIVERY_ADDONS
+          return res.status(200).send(encryptResponse({
+            screen: "DELIVERY_ADDONS",
+            data: {
+              order_type:            "delivery",
+              customer_name:         waName,
+              customer_phone:        waPhone,
+              alternate_phone:       "",
+              delivery_address:      liveLocation,
+              pincode:               "",
+              live_location_address: liveLocation,
+              address_type:          "live_location",
+              cart_summary:          cartSummary,
+              total_amount:          totalAmount,
+            }
+          }, aesKey, iv));
+        }
+
+        // Type address → show DELIVERY_DETAILS form
         return res.status(200).send(encryptResponse({
-          screen: deliveryScreen,
+          screen: "DELIVERY_DETAILS",
           data: {
-            order_type: "delivery",
-            cart_summary: cartSummary,
-            total_amount: totalAmount,
-            live_location_address: liveLocation || "",
-            init_values: initValues,
-            error_messages: {}
+            order_type:            "delivery",
+            cart_summary:          cartSummary,
+            total_amount:          totalAmount,
+            live_location_address: "",
+            init_values:           initValues,
+            error_messages:        {}
           }
         }, aesKey, iv));
       }
