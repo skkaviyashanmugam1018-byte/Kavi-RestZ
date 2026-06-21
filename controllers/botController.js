@@ -231,7 +231,7 @@ async function sendAfterAddToCart(to, cart) {
   const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
   await sendButtons(to,
     `✅ Added! 🛒 *Rs.${total}*`,
-    [{id:"ADD_MORE",title:"➕ Add More"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"PLACE_ORDER",title:"✅ Place Order"}]
+    [{id:"VIEW_CATALOGUE",title:"🖼️ Add More"},{id:"VIEW_CART",title:"🛒 View Cart"},{id:"PLACE_ORDER",title:"✅ Place Order"}]
   );
 }
 
@@ -487,7 +487,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
             {id:"ORDER_DELIVERY",title:"🚚 Home Delivery",description:"Doorstep delivery"},
             {id:"ORDER_TAKEAWAY",title:"🥡 Take Away",    description:"Pickup at restaurant"},
             {id:"ORDER_DINEIN",  title:"🍽️ Dine In",      description:"Book a table"},
-            {id:"BROWSE_MENU",   title:"📋 Browse Menu",  description:"View full menu"},
+            {id:"BROWSE_MENU",   title:"📋 Browse Menu",  description:"View our catalogue"},
             {id:"exit",          title:"❌ Exit",           description:"Bye!"},
           ]
         }]
