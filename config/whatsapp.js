@@ -97,7 +97,7 @@ async function sendCatalogueMessage(to) {
 // ✅ Updated sendDeliveryFlow — clean message based on order type
 async function sendDeliveryFlow(to, cartSummary, totalAmount, orderType="") {
   try {
-    const flowToken = `delivery_${to}_${Date.now()}`;
+    const flowToken = `delivery_${to}_${Date.now()}_${orderType||"delivery"}`;
 
     // Header and body text based on order type
     const headerText =
