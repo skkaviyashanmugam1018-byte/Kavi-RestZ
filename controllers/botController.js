@@ -434,9 +434,12 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
         if (session.cart&&session.cart.length>0) {
           session.state="AWAITING_FLOW";
           await session.save();
+          console.log("📍 Session saved with live_location:", address?.substring(0,50));
           const cartSummary=buildCartSummary(session.cart);
           const total=session.cart.reduce((s,i)=>s+i.price*i.qty,0);
           await sendText(from,`✅ *Location received!*\n📍 ${address}\n🚚 ~${dist.km}km | Delivery: Rs.${dist.charge}\n\nOpening order form...`);
+          // Wait for MongoDB write to propagate before Flow INIT reads session
+          await new Promise(r => setTimeout(r, 2000));
           await sendDeliveryFlow(from,cartSummary,`Rs.${total}`,"delivery");
         } else {
           session.state="CATALOGUE";
