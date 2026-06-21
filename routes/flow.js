@@ -155,8 +155,21 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
       if (preSelectedType === "delivery") {
-        const hasLiveLocation = liveLocation && liveLocation.length > 0;
-        console.log(`📋 Delivery | live: ${hasLiveLocation} | cart: ${cartSummary}`);
+        // Also check live_location_coords as backup
+        let hasLiveLocation = liveLocation && liveLocation.length > 0;
+        if (!hasLiveLocation) {
+          try {
+            const checkSess = await Session.findOne({ phoneNumber: phone });
+            const coords = checkSess?.deliveryData?.live_location_coords;
+            const loc = checkSess?.deliveryData?.live_location;
+            if (coords || loc) {
+              hasLiveLocation = true;
+              liveLocation = loc || "";
+              console.log("📍 Re-fetched live location from DB:", loc);
+            }
+          } catch(e) {}
+        }
+        console.log(`📋 Delivery | live: ${hasLiveLocation} | liveLocation: ${liveLocation?.substring?.(0,50)}`);
 
         if (hasLiveLocation) {
           // ✅ Live location already shared → skip address form → go to DELIVERY_ADDONS
