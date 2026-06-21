@@ -217,7 +217,7 @@ router.post("/endpoint", async (req, res) => {
     // ORDER_TYPE data_exchange fallback (if old flow JSON)
     // ══════════════════════════════════════════════════════
     if (screen === "ORDER_TYPE" && action === "data_exchange") {
-      const orderType = data.order_type || "dine_in";
+      const orderType = data.order_type || data.cart_summary?.includes("Table") ? "dine_in" : "delivery";
       console.log(`📋 ORDER_TYPE fallback → ${orderType}`);
 
       const sess = await getSessionData(phone);
