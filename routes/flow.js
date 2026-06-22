@@ -433,6 +433,43 @@ router.post("/endpoint", async (req, res) => {
       );
     }
 
+    // ── FEEDBACK COMPLETE ─────────────────────────────────
+    if (action === "complete" && (screen === "GOOGLE_REVIEW" || data?.food_quality)) {
+      const {
+        food_quality, service_rating, value_rating,
+        overall_experience, review_text, order_id, google_review_url
+      } = data;
+
+      // Calculate avg rating
+      const ratings  = [food_quality, service_rating, value_rating, overall_experience]
+        .map(r => parseInt(r?.split("_")[0]) || 0)
+        .filter(n => n > 0);
+      const avgScore = ratings.length
+        ? (ratings.reduce((s, n) => s + n, 0) / ratings.length).toFixed(1)
+        : "0";
+
+      console.log(`⭐ Feedback received | Phone: ${phone} | Order: ${order_id} | Avg: ${avgScore}/5`);
+      console.log(`   Food: ${food_quality} | Service: ${service_rating} | Value: ${value_rating} | Overall: ${overall_experience}`);
+      if (review_text) console.log(`   Review: ${review_text}`);
+
+      // Thank you message with Google review link
+      const { sendText } = require("../config/whatsapp");
+      const thankMsg =
+        `⭐ *Thank you for your feedback!*\n\n` +
+        `Your rating: *${avgScore}/5*\n` +
+        `We appreciate your time 🙏\n\n` +
+        (google_review_url && google_review_url.includes("google")
+          ? `📍 Help others find us — drop a quick Google review!\n${google_review_url}`
+          : "") +
+        `\n\n🍛 Kavi Chettinadu | 📞 95859 60612`;
+
+      await sendText(phone, thankMsg);
+
+      return res.status(200).send(
+        encryptResponse({ screen: "SUCCESS", data: { status: "feedback_received" } }, aesKey, iv)
+      );
+    }
+
     // ── Unknown ───────────────────────────────────────────
     console.log("⚠️ Unhandled:", { action, screen });
     return res.status(200).send(encryptResponse({ version: "3.0", data: { status: "active" } }, aesKey, iv));
