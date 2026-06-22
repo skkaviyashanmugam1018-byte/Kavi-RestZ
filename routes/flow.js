@@ -117,7 +117,8 @@ router.post("/endpoint", async (req, res) => {
     // Extract phone and orderType from token: "delivery_<phone>_<timestamp>_<orderType>"
     const tokenParts = (flow_token || "").split("_");
     const phone = tokenParts[1] || null;
-    const tokenOrderType = tokenParts[3] || ""; // delivery/takeaway/dine_in
+    // dine_in has underscore — join from index 3 onwards
+    const tokenOrderType = tokenParts.slice(3).join("_") || ""; // delivery/takeaway/dine_in
     console.log(`📞 Phone: ${phone} | tokenOrderType: ${tokenOrderType}`);
 
     // ══════════════════════════════════════════════════════
@@ -296,18 +297,21 @@ router.post("/endpoint", async (req, res) => {
         pickup_date, pickup_time,
       } = data;
 
-      // Name/phone from flow data (pre-filled from session via init-values)
-      // Fallback to session if flow data empty
-      const sess2 = await getSessionData(phone);
-      const customer_name  = data.customer_name  || sess2?.whatsappName || "Customer";
+      // Single session fetch for the entire COMPLETE handler
+      const session = await getSessionData(phone);
+      if (!session) {
+        console.error("❌ Session not found:", phone);
+        return res.status(200).send(encryptResponse({ screen: "SUCCESS", data: { status: "error" } }, aesKey, iv));
+      }
+
+      const customer_name  = data.customer_name  || session?.whatsappName || "Customer";
       const customer_phone = data.customer_phone || phone?.replace(/^91/, "") || "";
       const alternate_phone = alt_phone_from_flow || "";
 
       // ── Delivery charge ──────────────────────────────────
       let deliveryCharge = 0, distanceInfo = "";
       if (order_type === "delivery") {
-        const sess = await getSessionData(phone);
-        const liveCoords = sess?.deliveryData?.live_location_coords;
+        const liveCoords = session?.deliveryData?.live_location_coords;
         let dr;
         if (liveCoords) {
           dr = getChargeFromLocation(liveCoords.lat, liveCoords.lng);
@@ -332,11 +336,6 @@ router.post("/endpoint", async (req, res) => {
           : "Dine In";
 
       // ── Cart & totals ────────────────────────────────────
-      const session = await getSessionData(phone);
-      if (!session) {
-        console.error("❌ Session not found:", phone);
-        return res.status(200).send(encryptResponse({ screen: "SUCCESS", data: { status: "error" } }, aesKey, iv));
-      }
 
       const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
       const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
@@ -352,8 +351,6 @@ router.post("/endpoint", async (req, res) => {
       // Dine In: minimum booking amount Rs.500
       const rawTotal   = subtotal + gstAmount;
       const grandTotal = order_type === "dine_in" ? Math.max(rawTotal, 500) : rawTotal;
-      const advanceNote = order_type === "dine_in" && rawTotal < 500
-        ? "\n💡 *Minimum advance booking: Rs.500*" : "";
 
       const addonText   = addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ");
       const itemsList  = session.cart.map(i => `• ${i.name} × ${i.qty} = Rs.${i.price * i.qty}`).join("\n");
@@ -362,17 +359,7 @@ router.post("/endpoint", async (req, res) => {
         order_type === "delivery" ? "🚚 Home Delivery" :
         order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
 
-      const delivLabel = order_type === "delivery"
-        ? `Rs.${deliveryCharge} (${distanceInfo})` : "Free";
 
-      const tableInfo =
-        order_type === "dine_in" && table_persons
-          ? `\n👥 *Guests:* ${table_persons}\n📅 *Date:* ${table_date}\n🕐 *Slot:* ${table_time}\n🪑 *Seating:* ${seatLabel}` +
-            (occasion_name ? `\n🎉 *Occasion:* ${occasion_name}` : "") +
-            (celebText    ? `\n🎊 *Arrangements:* ${celebText}`  : "")
-          : order_type === "takeaway"
-          ? `\n📅 *Date:* ${pickup_date || ""}\n🕐 *Pickup:* ${pickup_time || "ASAP"}`
-          : "";
 
       // ── Save to session ──────────────────────────────────
       session.deliveryData = {
@@ -397,7 +384,7 @@ router.post("/endpoint", async (req, res) => {
         celebration_addons:   Array.isArray(celebration_addons) ? celebration_addons : [],
         occasion_name:        occasion_name     || "",
         grand_total:          grandTotal,
-        live_location:        session.deliveryData?.live_location || "",
+        live_location:        session?.deliveryData?.live_location || "",
       };
       session.state = "PAYMENT_SELECT";
       session.markModified("deliveryData");
