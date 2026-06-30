@@ -1,10 +1,12 @@
-const express = require("express");
-const router  = express.Router();
-const crypto  = require("crypto");
-const fs      = require("fs");
-const path    = require("path");
-const Session = require("../models/Session");
-const { sendButtons } = require("../config/whatsapp");
+"use strict";
+
+const express  = require("express");
+const router   = express.Router();
+const crypto   = require("crypto");
+const fs       = require("fs");
+const path     = require("path");
+const Session  = require("../models/Session");
+const { sendButtons, sendText } = require("../config/whatsapp");
 const { getChargeFromPincode, getChargeFromLocation } = require("../config/distanceHelper");
 
 // ── Private Key ───────────────────────────────────────────
@@ -82,13 +84,18 @@ async function getSessionData(phone) {
   }
 }
 
+console.log("🔍 ENV CHECK:");
+console.log("  DELIVERY_FLOW_ID:", process.env.DELIVERY_FLOW_ID || "❌ NOT SET");
+console.log("  TAKEAWAY_FLOW_ID:", process.env.TAKEAWAY_FLOW_ID || "❌ NOT SET");
+console.log("  DINEIN_FLOW_ID:",   process.env.DINEIN_FLOW_ID   || "❌ NOT SET");
+console.log("  FEEDBACK_FLOW_ID:", process.env.FEEDBACK_FLOW_ID || "❌ NOT SET");
+
 // ── Main Route ────────────────────────────────────────────
 router.post("/endpoint", async (req, res) => {
   try {
     const body = req.body;
     console.log("📩 Flow endpoint v5 | action:", body?.action || "encrypted");
 
-    // Unencrypted ping
     if (body?.action === "ping") {
       console.log("🏓 Ping → pong");
       return res.status(200).json({ version: "3.0", data: { status: "active" } });
@@ -109,7 +116,6 @@ router.post("/endpoint", async (req, res) => {
     const { flow_token, data, action, screen } = decryptedBody;
     console.log("📩 Flow:", JSON.stringify({ action, screen }, null, 2));
 
-    // Encrypted ping
     if (action === "ping") {
       return res.status(200).send(encryptResponse({ version: "3.0", data: { status: "active" } }, aesKey, iv));
     }
@@ -117,13 +123,11 @@ router.post("/endpoint", async (req, res) => {
     // Extract phone and orderType from token: "delivery_<phone>_<timestamp>_<orderType>"
     const tokenParts = (flow_token || "").split("_");
     const phone = tokenParts[1] || null;
-    // dine_in has underscore — join from index 3 onwards
     const tokenOrderType = tokenParts.slice(3).join("_") || ""; // delivery/takeaway/dine_in
     console.log(`📞 Phone: ${phone} | tokenOrderType: ${tokenOrderType}`);
 
     // ══════════════════════════════════════════════════════
     // INIT — Each flow has its own screen as first screen
-    // No ORDER_TYPE screen needed (separate flows per type)
     // ══════════════════════════════════════════════════════
     if (action === "INIT" || (action === "navigate" && (!screen || screen === ""))) {
       console.log("📋 INIT | tokenOrderType:", tokenOrderType);
@@ -147,9 +151,7 @@ router.post("/endpoint", async (req, res) => {
         customer_phone: waPhone,
       };
 
-      // ── DELIVERY FLOW ──────────────────────────────────
       if (tokenOrderType === "delivery") {
-        // Re-fetch fresh for live location check
         let hasLiveLocation = false;
         try {
           const fresh    = await Session.findOne({ phoneNumber: phone }).lean();
@@ -173,7 +175,6 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
 
-      // ── TAKEAWAY FLOW ──────────────────────────────────
       if (tokenOrderType === "takeaway") {
         return res.status(200).send(encryptResponse({
           screen: "TAKEAWAY_DETAILS",
@@ -186,7 +187,6 @@ router.post("/endpoint", async (req, res) => {
         }, aesKey, iv));
       }
 
-      // ── DINE IN FLOW ───────────────────────────────────
       return res.status(200).send(encryptResponse({
         screen: "DINE_DETAILS",
         data: {
@@ -198,6 +198,40 @@ router.post("/endpoint", async (req, res) => {
       }, aesKey, iv));
     }
 
+    // ══════════════════════════════════════════════════════
+    // FEEDBACK COMPLETE — Check BEFORE generic complete handler
+    // ══════════════════════════════════════════════════════
+    if (action === "complete" && data?.food_quality) {
+      const {
+        food_quality, service_rating, value_rating,
+        overall_experience, review_text, order_id, google_review_url
+      } = data;
+
+      const ratings  = [food_quality, service_rating, value_rating, overall_experience]
+        .map(r => parseInt(r?.split("_")[0]) || 0)
+        .filter(n => n > 0);
+      const avgScore = ratings.length
+        ? (ratings.reduce((s, n) => s + n, 0) / ratings.length).toFixed(1)
+        : "0";
+
+      console.log(`⭐ Feedback received | Phone: ${phone} | Order: ${order_id} | Avg: ${avgScore}/5`);
+      if (review_text) console.log(`   Review: ${review_text}`);
+
+      const thankMsg =
+        `⭐ *Thank you for your feedback!*\n\n` +
+        `Your rating: *${avgScore}/5*\n` +
+        `We appreciate your time 🙏\n\n` +
+        (google_review_url && google_review_url.includes("google")
+          ? `📍 Help others find us — drop a quick Google review!\n${google_review_url}`
+          : "") +
+        `\n\n🍛 Kavi Chettinadu | 📞 95859 60612`;
+
+      await sendText(phone, thankMsg);
+
+      return res.status(200).send(
+        encryptResponse({ screen: "SUCCESS", data: { status: "feedback_received" } }, aesKey, iv)
+      );
+    }
 
     // ══════════════════════════════════════════════════════
     // COMPLETE — Process order and send bill
@@ -208,7 +242,6 @@ router.post("/endpoint", async (req, res) => {
 
       const {
         order_type,
-        address_type,
         delivery_address, pincode,
         alternate_phone: alt_phone_from_flow,
         selected_addons, special_instructions,
@@ -217,15 +250,14 @@ router.post("/endpoint", async (req, res) => {
         pickup_date, pickup_time,
       } = data;
 
-      // Single session fetch for the entire COMPLETE handler
       const session = await getSessionData(phone);
       if (!session) {
         console.error("❌ Session not found:", phone);
         return res.status(200).send(encryptResponse({ screen: "SUCCESS", data: { status: "error" } }, aesKey, iv));
       }
 
-      const customer_name  = data.customer_name  || session?.whatsappName || "Customer";
-      const customer_phone = data.customer_phone || phone?.replace(/^91/, "") || "";
+      const customer_name   = data.customer_name  || session?.whatsappName || "Customer";
+      const customer_phone  = data.customer_phone || phone?.replace(/^91/, "") || "";
       const alternate_phone = alt_phone_from_flow || "";
 
       // ── Delivery charge ──────────────────────────────────
@@ -244,7 +276,7 @@ router.post("/endpoint", async (req, res) => {
           distanceInfo = "📍 Address provided";
         }
         deliveryCharge = dr.charge;
-        console.log(`🚚 Delivery: ${distanceInfo} → Rs.${deliveryCharge}`);
+        console.log(`🚚 Delivery: ${distanceInfo} → ₹${deliveryCharge}`);
       }
 
       // ── Address ──────────────────────────────────────────
@@ -256,30 +288,38 @@ router.post("/endpoint", async (req, res) => {
           : "Dine In";
 
       // ── Cart & totals ────────────────────────────────────
-
-      const cartTotal  = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
-      const addonList  = Array.isArray(selected_addons) ? selected_addons : [];
-      const addonItems = addonList.map(id => ADDON_PRICES[id]).filter(Boolean);
-      const addonTotal = addonItems.reduce((s, a) => s + a.price, 0);
+      const cartTotal   = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const addonList   = Array.isArray(selected_addons) ? selected_addons : [];
+      const addonItems  = addonList.map(id => ADDON_PRICES[id]).filter(Boolean);
+      const addonTotal  = addonItems.reduce((s, a) => s + a.price, 0);
       const celebList   = (Array.isArray(celebration_addons) ? celebration_addons : [])
         .map(id => CELEBRATION_MAP[id]).filter(Boolean);
       const celebTotal  = celebList.reduce((s, c) => s + c.price, 0);
-      const celebText   = celebList.map(c => `${c.name} (Rs.${c.price})`).join(", ");
+      const celebText   = celebList.map(c => `${c.name} (₹${c.price})`).join(", ");
       const seatLabel   = SEATING_MAP[table_seating] || table_seating || "";
-      const subtotal   = cartTotal + addonTotal + celebTotal + deliveryCharge;
-      const gstAmount  = Math.round(subtotal * GST / 100);
-      // Dine In: minimum booking amount Rs.500
-      const rawTotal   = subtotal + gstAmount;
-      const grandTotal = order_type === "dine_in" ? Math.max(rawTotal, 500) : rawTotal;
+      const subtotal    = cartTotal + addonTotal + celebTotal + deliveryCharge;
+      const gstAmount   = Math.round(subtotal * GST / 100);
+      const rawTotal    = subtotal + gstAmount;
+      const grandTotal  = order_type === "dine_in" ? Math.max(rawTotal, 500) : rawTotal;
 
-      const addonText   = addonItems.map(a => `${a.name} (Rs.${a.price})`).join(", ");
-      const itemsList  = session.cart.map(i => `• ${i.name} × ${i.qty} = Rs.${i.price * i.qty}`).join("\n");
+      const addonText  = addonItems.map(a => `${a.name} (₹${a.price})`).join(", ");
+      const itemsList  = session.cart.map(i => `• ${i.name} × ${i.qty} = ₹${i.price * i.qty}`).join("\n");
 
       const orderTypeLabel =
         order_type === "delivery" ? "🚚 Home Delivery" :
         order_type === "takeaway" ? "🥡 Take Away"     : "🍽️ Dine In";
 
+      const delivLabel = order_type === "delivery"
+        ? `₹${deliveryCharge} (${distanceInfo})` : "Free";
 
+      const tableInfo =
+        order_type === "dine_in" && table_persons
+          ? `\n👥 Guests: ${table_persons}  |  📅 ${table_date}\n🕐 ${table_time}  |  🪑 ${seatLabel}` +
+            (occasion_name ? `\n🎉 ${occasion_name}` : "") +
+            (celebText     ? `\n🎊 ${celebText}` : "")
+          : order_type === "takeaway"
+          ? `\n📅 ${pickup_date || ""}  |  🕐 ${pickup_time || "ASAP"}`
+          : "";
 
       // ── Save to session ──────────────────────────────────
       session.deliveryData = {
@@ -309,7 +349,7 @@ router.post("/endpoint", async (req, res) => {
       session.state = "PAYMENT_SELECT";
       session.markModified("deliveryData");
       await session.save();
-      console.log(`✅ Session saved | Grand Total: Rs.${grandTotal} | State: PAYMENT_SELECT`);
+      console.log(`✅ Session saved | Grand Total: ₹${grandTotal} | State: PAYMENT_SELECT`);
 
       // ── Bill text ────────────────────────────────────────
       const isDineIn = order_type === "dine_in";
@@ -323,12 +363,12 @@ router.post("/endpoint", async (req, res) => {
         `─────────────` +
         (cartTotal > 0 ? `\n${itemsList}` : "") +
         `\n─────────────\n` +
-        (cartTotal > 0 ? `Food: Rs.${cartTotal}\n` : "") +
-        (addonTotal > 0 ? `Add-ons: Rs.${addonTotal}\n` : "") +
+        (cartTotal > 0 ? `Food: ₹${cartTotal}\n` : "") +
+        (addonTotal > 0 ? `Add-ons: ₹${addonTotal}\n` : "") +
         (order_type === "delivery" ? `Delivery: ${delivLabel}\n` : "") +
-        `GST: Rs.${gstAmount}\n` +
+        `GST: ₹${gstAmount}\n` +
         `─────────────\n` +
-        `💰 *Total: Rs.${grandTotal}*\n\n` +
+        `💰 *Total: ₹${grandTotal}*\n\n` +
         `💳 Choose payment:`;
 
       // ── Payment buttons ──────────────────────────────────
@@ -350,43 +390,6 @@ router.post("/endpoint", async (req, res) => {
       await sendButtons(phone, billText, payButtons);
       return res.status(200).send(
         encryptResponse({ screen: "SUCCESS", data: { status: "payment_pending" } }, aesKey, iv)
-      );
-    }
-
-    // ── FEEDBACK COMPLETE ─────────────────────────────────
-    if (action === "complete" && (screen === "GOOGLE_REVIEW" || data?.food_quality)) {
-      const {
-        food_quality, service_rating, value_rating,
-        overall_experience, review_text, order_id, google_review_url
-      } = data;
-
-      // Calculate avg rating
-      const ratings  = [food_quality, service_rating, value_rating, overall_experience]
-        .map(r => parseInt(r?.split("_")[0]) || 0)
-        .filter(n => n > 0);
-      const avgScore = ratings.length
-        ? (ratings.reduce((s, n) => s + n, 0) / ratings.length).toFixed(1)
-        : "0";
-
-      console.log(`⭐ Feedback received | Phone: ${phone} | Order: ${order_id} | Avg: ${avgScore}/5`);
-      console.log(`   Food: ${food_quality} | Service: ${service_rating} | Value: ${value_rating} | Overall: ${overall_experience}`);
-      if (review_text) console.log(`   Review: ${review_text}`);
-
-      // Thank you message with Google review link
-      const { sendText } = require("../config/whatsapp");
-      const thankMsg =
-        `⭐ *Thank you for your feedback!*\n\n` +
-        `Your rating: *${avgScore}/5*\n` +
-        `We appreciate your time 🙏\n\n` +
-        (google_review_url && google_review_url.includes("google")
-          ? `📍 Help others find us — drop a quick Google review!\n${google_review_url}`
-          : "") +
-        `\n\n🍛 Kavi Chettinadu | 📞 95859 60612`;
-
-      await sendText(phone, thankMsg);
-
-      return res.status(200).send(
-        encryptResponse({ screen: "SUCCESS", data: { status: "feedback_received" } }, aesKey, iv)
       );
     }
 
