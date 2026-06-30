@@ -82,6 +82,13 @@ async function getSessionData(phone) {
   }
 }
 
+
+console.log("🔍 ENV CHECK:");
+console.log("  DELIVERY_FLOW_ID:", process.env.DELIVERY_FLOW_ID || "❌ NOT SET");
+console.log("  TAKEAWAY_FLOW_ID:", process.env.TAKEAWAY_FLOW_ID || "❌ NOT SET");
+console.log("  DINEIN_FLOW_ID:",   process.env.DINEIN_FLOW_ID   || "❌ NOT SET");
+console.log("  FEEDBACK_FLOW_ID:", process.env.FEEDBACK_FLOW_ID || "❌ NOT SET");
+
 // ── Main Route ────────────────────────────────────────────
 router.post("/endpoint", async (req, res) => {
   try {
