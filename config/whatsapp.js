@@ -131,7 +131,11 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount, orderType="") {
             parameters:{
               flow_message_version:"3",
               flow_token:flowToken,
-              flow_id:process.env.FLOW_ID,
+              flow_id:
+                orderType==="delivery" ? process.env.DELIVERY_FLOW_ID :
+                orderType==="takeaway" ? process.env.TAKEAWAY_FLOW_ID :
+                orderType==="dine_in"  ? process.env.DINEIN_FLOW_ID   :
+                process.env.FLOW_ID,
               flow_cta:ctaText,
             }
           }
