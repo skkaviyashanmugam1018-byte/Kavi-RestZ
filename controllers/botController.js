@@ -258,10 +258,10 @@ async function generatePaymentLink(session, from, type = "upi") {
 async function sendWelcome(to, name = "") {
   const greeting = name ? `👋 Hello ${name}!` : "👋 Welcome!";
   await sendImage(to, LOGO_URL,
-    `🍛 *Kavi Chettinadu Restaurant*\n✨ _Taste The Tradition_\n\n${greeting}\n🏆 Authentic Chettinad Cuisine\n📍 Rameswaram  |  ⏰ 12PM–10:30PM`
+    `🍛 *Kavi Chettinadu Restaurant*\n✨ _Taste The Tradition_\n\n${greeting} 🙏\n\nExperience the rich flavours of authentic Chettinad cuisine, lovingly prepared for you.\n\n📍 Rameswaram  |  ⏰ 12PM – 10:30PM`
   );
   await sendButtons(to,
-    "🍽️ What would you like today?",
+    "🍽️ How may we serve you today?",
     [{ id: "GET_STARTED", title: "🍴 Explore Now" }]
   );
 }
@@ -326,7 +326,7 @@ async function showAfterAddToCart(to, cart) {
 }
 
 async function showBrowseOptions(to) {
-  await sendButtons(to, "🍽️ Browse our menu:", [
+  await sendButtons(to, "🍽️ Explore our menu — crafted with authentic Chettinad spices and love 🌶️", [
     { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
     { id: "search",         title: "🔍 Search Dish" },
   ]);
@@ -509,7 +509,7 @@ async function placeOrder(from, session) {
   const eta       = isDineIn ? "" : "\n⏱️ Estimated Delivery: 30–45 mins";
 
   await sendButtons(from,
-    `${header}\n${idLabel}: #${orderId}\n─────────────────\n` +
+    `${header}\n${idLabel}: *#${orderId}*\n─────────────────\n` +
     `${itemLines}\n─────────────────\n` +
     (cartTotal  > 0 ? `Food Total:  ₹${cartTotal}\n` : "") +
     (addonTotal > 0 ? `Add-ons:     ₹${addonTotal}\n` : "") +
@@ -517,7 +517,7 @@ async function placeOrder(from, session) {
     `GST (${GST_RATE}%):     ₹${gst_amount}\n─────────────────\n` +
     `💰 *Grand Total: ₹${finalTotal}*\n` +
     `💳 Payment: ${payLabel}\n${orderLabel}${dineInfo}` +
-    `${eta}\n\nThank you! 🙏\n📞 95859 60612`,
+    `${eta}\n\nThank you for choosing Kavi Chettinadu! 🙏\nWe hope you enjoy every bite 😊\n📞 95859 60612`,
     [
       { id: "VIEW_CATALOGUE", title: "🔄 Order Again" },
       { id: "exit",           title: "❌ Exit" },
@@ -610,7 +610,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
           const cartSummary = buildCartSummary(session.cart);
           const total       = session.cart.reduce((s, i) => s + i.price * i.qty, 0);
           await sendText(from,
-            `✅ *Location received!*\n📍 ${address}\n🚚 ~${dist.km}km  |  Delivery: ₹${dist.charge}\n\nOpening order form...`
+            `✅ *Perfect, we've got your location!*\n📍 ${address}\n🚚 ${dist.km}km away  |  Delivery charge: ₹${dist.charge}\n\nJust a moment while we open your order form ✨`
           );
           await new Promise(r => setTimeout(r, 2000)); // Wait for DB write
           await sendDeliveryFlow(from, cartSummary, `₹${total}`, "delivery");
@@ -637,7 +637,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("cart");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from, "👋 Thank you for visiting! Visit again soon 🍛\nSend *hi* to order anytime.");
+      await sendText(from, "👋 *Thank you for choosing Kavi Chettinadu!*\n\nIt was a pleasure serving you. We look forward to your next visit! 🙏\n\nSend *hi* anytime to place your next order 🍛");
       return;
     }
 
@@ -673,7 +673,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
       if (timeNow < openTime || timeNow >= closeTime) {
         await sendButtons(from,
-          "🕐 *We are currently closed.*\n\n⏰ Our timings: *12:00 PM – 10:30 PM*\n📍 Kavi Chettinadu, Rameswaram\n\nPlease visit us during working hours 🙏",
+          "🕐 *We're currently closed*\n\nThank you for your interest! We'd love to serve you during our working hours.\n\n⏰ *12:00 PM – 10:30 PM*\n📍 Kavi Chettinadu, Rameswaram\n\nWe look forward to welcoming you soon! 🙏",
           [{ id: "hi", title: "🔔 Remind me later" }]
         );
         return;
@@ -686,7 +686,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       await session.save();
       await sendList(from,
         "🍛 Kavi Chettinadu",
-        "How can we serve you today? 🙏",
+        "We are delighted to have you! Please choose how you'd like to enjoy our food 😊",
         "Choose",
         [{
           title: "Order Options",
@@ -710,7 +710,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("preSelectedOrderType");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from, "🚚 *Home Delivery* — Add items to cart:");
+      await sendText(from, "🚚 *Home Delivery*\n\nBrowse our menu and we'll deliver fresh Chettinad flavours right to your doorstep! 🍛");
       await showBrowseOptions(from);
       return;
     }
@@ -723,7 +723,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("preSelectedOrderType");
       session.markModified("deliveryData");
       await session.save();
-      await sendText(from, "🥡 *Take Away* — Add items to cart:");
+      await sendText(from, "🥡 *Take Away*\n\nYour food will be freshly prepared and ready for pickup! Browse our menu below 🍽️");
       await showBrowseOptions(from);
       return;
     }
@@ -736,9 +736,9 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("deliveryData");
       await session.save();
       await sendButtons(from,
-        "🍽️ *Dine In* — How would you like to proceed?",
+        "🍽️ *Welcome to Kavi Chettinadu!*\n\nWe would be honoured to host you. How would you like to proceed?",
         [
-          { id: "DINEIN_BOOK_ONLY",  title: "📅 Book Table Only" },
+          { id: "DINEIN_BOOK_ONLY",  title: "📅 Reserve a Table" },
           { id: "DINEIN_WITH_ORDER", title: "🍽️ Book + Pre-order Food" },
         ]
       );
@@ -759,7 +759,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.cart  = [];
       session.markModified("cart");
       await session.save();
-      await sendText(from, "🍽️ *Book + Pre-order* — Add items to your cart first:");
+      await sendText(from, "🍽️ *Book & Pre-order*\n\nAdd your favourite dishes to cart and we'll have everything ready when you arrive! 🌟");
       await showBrowseOptions(from);
       return;
     }
@@ -771,9 +771,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.markModified("preSelectedOrderType");
       await session.save();
       await sendText(from,
-        "📍 *Share your live location:*\n\n" +
-        "Tap the 📎 attachment icon below\n→ *Location*\n→ *Send your current location*\n\n" +
-        "We'll calculate your delivery charge automatically! 🚚"
+        "📍 *Share Your Location*\n\nSo we can bring your food right to your door! 🚚\n\nTap the 📎 attachment icon below\n→ *Location* → *Send your current location*\n\nWe'll take care of the rest ✨"
       );
       return;
     }
@@ -809,7 +807,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     if (["search", "/search"].includes(input)) {
       session.state = "SEARCHING";
       await session.save();
-      await sendText(from, "🔍 Type a dish name to search:\n_e.g. chicken, biryani, naan_");
+      await sendText(from, "🔍 *Search Our Menu*\n\nType the name of any dish and we'll find it for you!\n_e.g. chicken, biryani, naan, fish_");
       return;
     }
 
@@ -961,7 +959,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
       session.cart = [];
       session.markModified("cart");
       await session.save();
-      await sendButtons(from, "🗑️ Cart cleared!", [
+      await sendButtons(from, "🗑️ Your cart has been cleared.\n\nFeel free to browse our menu and start fresh! 🍽️", [
         { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
         { id: "BROWSE_MENU",   title: "📋 Browse Menu" },
       ]);
@@ -971,7 +969,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
     // ── PLACE ORDER ──────────────────────────────────────────
     if (["PLACE_ORDER", "PLACE_ORDER_FLOW", "/order"].includes(input)) {
       if (!session.cart || session.cart.length === 0) {
-        await sendButtons(from, "❌ Your cart is empty!", [
+        await sendButtons(from, "🛒 Your cart is empty!\n\nBrowse our menu and add your favourite dishes 🍽️", [
           { id: "VIEW_CATALOGUE", title: "🖼️ View Catalogue" },
           { id: "BROWSE_MENU",   title: "📋 Browse Menu" },
         ]);
@@ -1224,7 +1222,7 @@ const handleMessage = async (from, messageBody, interactiveReply, locationData, 
 
     // ── FALLBACK ─────────────────────────────────────────────
     await sendButtons(from,
-      "🤔 Sorry, I didn't understand that.\nSend *hi* to start ordering! 🍛",
+      "🙏 We're sorry, we didn't quite catch that.\n\nSend *hi* to get started and our team will be happy to assist you! 🍛",
       [
         { id: "hi",       title: "🍴 Start Ordering" },
         { id: "VIEW_CART", title: "🛒 View Cart" },
