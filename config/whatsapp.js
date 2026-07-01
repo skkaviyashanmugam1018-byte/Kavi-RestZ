@@ -101,21 +101,21 @@ async function sendDeliveryFlow(to, cartSummary, totalAmount, orderType="") {
 
     // Header and body text based on order type
     const headerText =
-      orderType==="dine_in"  ? "🍽️ Table Booking"   :
-      orderType==="takeaway" ? "🥡 Take Away"        :
-      orderType==="delivery" ? "🚚 Home Delivery"    : "📦 Order Details";
+      orderType==="dine_in"  ? "🍽️ Reserve Your Table"  :
+      orderType==="takeaway" ? "🥡 Schedule Pickup"      :
+      orderType==="delivery" ? "🚚 Delivery Details"     : "📦 Your Order";
 
     const bodyText =
       orderType==="dine_in"
-        ? "Fill in your table booking details below."
+        ? "We'd love to host you! Please share your booking details 🙏"
         : totalAmount && totalAmount!=="Rs.0"
-        ? `🛒 ${cartSummary}\n💰 Total: *${totalAmount}*`
-        : "Please fill your details below:";
+        ? `Your order is ready! 🛒\n${cartSummary}\n💰 *${totalAmount}*\n\nJust a few details and we'll take care of the rest ✨`
+        : "Please share your details and we'll handle the rest 🙏";
 
     const ctaText =
-      orderType==="dine_in"  ? "Book a Table"        :
-      orderType==="takeaway" ? "Fill Takeaway Details":
-      orderType==="delivery" ? "Fill Delivery Details": "Enter Order Details";
+      orderType==="dine_in"  ? "Reserve My Table 🍽️"   :
+      orderType==="takeaway" ? "Schedule My Pickup 🥡"  :
+      orderType==="delivery" ? "Confirm My Address 📍"  : "Continue →";
 
     await axios.post(getBaseUrl(),
       {
